@@ -81,7 +81,7 @@
        (for/and ([c (in-string s)])
          (< (char->integer c) 256))))
 
-;; printable-string : Any -> Boolean
+;; printable-string? : Any -> Boolean
 (define (printable-string? s)
   (and (string? s) (regexp-match? #rx"^[-a-zA-Z0-9 '()+,./:=?]*$" s)))
 

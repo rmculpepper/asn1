@@ -248,33 +248,48 @@
 
 ;; Base type encoders
 
+(define (encode-bad type value [expected #f] #:msg [msg #f] #:more [more ""])
+  (error 'DER-encode-value
+         "bad value for type~a\n  type: ~a~a\n  value: ~e~a"
+         type
+         (if msg (format ";\n ~a" msg) "")
+         (if expected (format "\n  expected: ~a" expected) "")
+         value
+         more))
+
 ;; encode-boolean : boolean -> bytes
 (define (encode-boolean b)
+  (unless (boolean? b) (encode-bad 'BOOLEAN b 'boolean?))
   (if b #"\1" #"\0"))
 
 ;; encode-bit-string : bytes nat -> bytes
 (define (encode-bit-string bits trailing-unused)
+  (unless (bytes? bits)
+    (encode-bad 'BIT-STRING bits #:more "\n  trailing unused bits: ~e" trailing-unused))
+  (unless (and (exact-nonnegative-integer? trailing-unused)
+               (<= 0 trailing-unused 7))
+    (encode-bad 'BIT-STRING bits #:more "\n  trailing unused bits: ~e" trailing-unused
+                #:msg "trailing unused bits out of range [0,7]"))
   (cond [(zero? (bytes-length bits))
          (unless (zero? trailing-unused)
-           (error 'encode-bit-string
-                  "trailing unused bits non-zero for empty bit string\n  value: ~e\n  trailing unused bits: ~s"
-                  bits trailing-unused))]
+           (encode-bad 'BIT-STRING bits
+                       #:more (format "\n  trailing unused bits: ~e" trailing-unused)
+                       #:msg "trailing unused bits non-zero for empty bit string"))]
         [else
          (unless (zero? (bitwise-bit-field (bytes-ref bits (sub1 (bytes-length bits))) 0 trailing-unused))
-           (error 'encode-bit-string "trailing unused bits are not 0\n  value: ~e\n  trailing unused bits: ~s"
-                  bits trailing-unused))])
+           (encode-bad 'BIT-STRING bits
+                       #:more (format "\n  trailing unused bits: ~e" trailing-unused)
+                       #:msg "trailing unused bits are not 0"))])
   (bytes-append (bytes trailing-unused) bits))
 
 ;; encode-ia5string : String -> Bytes
 (define (encode-ia5string s)
-  (unless (ia5string? s)
-    (raise-argument-error 'encode-ia5string "ia5string?" s))
+  (unless (ia5string? s) (encode-bad 'IA5String s 'ia5string?))
   (string->bytes/latin-1 s))
 
 ;; encode-integer : Exact-Integer -> Bytes
 (define (encode-integer n)
-  (unless (exact-integer? n)
-    (error 'encode-integer "not an exact integer: ~e" n))
+  (unless (exact-integer? n) (encode-bad 'INTEGER n 'exact-integer?))
   (signed->base256 n))
 
 ;; encode-null : Any -> Bytes
@@ -283,6 +298,8 @@
 
 ;; encode-object-identifier : (listof (U Nat (List Symbol Nat))) -> Bytes
 (define (encode-object-identifier cs)
+  (unless (and (list? cs) (andmap exact-nonnegative-integer? cs))
+    (encode-bad 'OBJECT-IDENTIFIER cs '(listof exact-nonnegative-integer?)))
   (let ([cs (for/list ([c (in-list cs)])
               (if (list? c) (cadr c) c))])
     (let ([c1 (car cs)]
@@ -303,21 +320,28 @@
 
 ;; encode-octet-string : Bytes -> Bytes
 (define (encode-octet-string b)
+  (unless (bytes? b) (encode-bad 'OCTET-STRING b 'bytes?))
   b)
 
 ;; encode-printable-string : Printable-String -> Bytes
 (define (encode-printable-string s)
+  (unless (printable-string? s) (encode-bad 'PrintableString s 'printable-string?))
   (string->bytes/latin-1 s))
 
 (define (encode-utf8string s)
+  (unless (string? s) (encode-bad 'UTF8String s 'string?))
   (string->bytes/utf-8 s))
 
 ;; encode-sequence : (listof Bytes) -> Bytes
 (define (encode-sequence lst)
+  (unless (and (list? lst) (andmap bytes? lst))
+    (encode-bad 'SEQUENCE lst '(listof bytes?)))
   (apply bytes-append lst))
 
 ;; encode-set : (listof Bytes) -> Bytes
 (define (encode-set lst)
+  (unless (and (list? lst) (andmap bytes? lst))
+    (encode-bad 'SET lst '(listof bytes?)))
   (apply bytes-append (sort lst bytes<?)))
 
 ;; ============================================================
@@ -534,29 +558,35 @@
 
 ;; Base type decoders
 
+(define (decode-bad type encoded #:msg [msg #f] #:more [more #f])
+  (error 'DER-decode-value
+         "bad encoding for type~a\n  type: ~a\n  encoding: ~e~a"
+         (if msg (format ";\n ~a" msg) "")
+         type encoded more))
+
 ;; decode-boolean : Bytes -> Boolean
 (define (decode-boolean b)
   (cond [(equal? b #"\1") #t]
         [(equal? b #"\0") #f]
-        [else (error 'decode-boolean "bad BOOLEAN encoding\n  encoding: ~e" b)]))
+        [else (decode-bad 'BOOLEAN b)]))
 
 ;; decode-bit-string : bytes -> bytes
 ;; Given encoded content, returns raw bit string
 ;; FIXME: trailing-unused bits must be zero!
 (define (decode-bit-string c)
   (when (zero? (bytes-length c))
-    (error 'decode-bit-string "bad encoding for BIT STRING: empty"))
+    (decode-bad 'BIT-STRING c))
   (let ([trailing-unused (bytes-ref c 0)])
     (unless (zero? trailing-unused)
       ;; FIXME: support ... but with what representation?
-      (error 'decode-bit-string "BIT STRING with partial octets not supported"))
+      (error 'DER-decode-value "BIT STRING with partial octets not supported"))
     (subbytes c 1 (bytes-length c))))
 
 ;; decode-ia5string : Bytes -> String
 (define (decode-ia5string bs)
   (define s (bytes->string/latin-1 bs))
   (unless (ia5string? s)
-    (error 'decode-ia5string "not an ia5string: ~e" s))
+    (decode-bad 'IA5string bs))
   s)
 
 ;; decode-integer : bytes -> integer
@@ -567,26 +597,26 @@
 ;; decode-null : bytes -> #f
 (define (decode-null bs)
   (unless (equal? bs #"")
-    (error 'decode-null "bad encoding of NULL\n  encoding: ~e" bs))
+    (decode-bad 'NULL bs))
   #f)
 
 ;; decode-object-identifier : Bytes -> (listof Nat)
 (define (decode-object-identifier bs)
-  (when (zero? (bytes-length bs))
-    (error 'decode-object-identifier "empty" bs))
+  (unless (and (bytes? bs) (positive? (bytes-length bs)))
+    (decode-bad 'OBJECT-IDENTIFIER bs))
   (define in (open-input-bytes bs))
   (define b1 (read-byte in))
   (list* (quotient b1 40) (remainder b1 40)
          (let loop ()
            (if (eof-object? (peek-byte in))
                null
-               (let ([c (decode-oid-component in)])
+               (let ([c (decode-oid-component in bs)])
                  (cons c (loop)))))))
-(define (decode-oid-component in)
+(define (decode-oid-component in bs)
   (let loop ([c 0])
     (let ([next (read-byte in)])
       (cond [(eof-object? next)
-             (error 'decode-object-identifier "incomplete component")]
+             (decode-bad 'OBJECT-IDENTIFIER bs #:msg "incomplete component")]
             [(< next 128)
              (+ next (arithmetic-shift c 7))]
             [else
@@ -601,9 +631,9 @@
   (let ([s (bytes->string/latin-1 bs)])
     (if (printable-string? s)
         s
-        (error 'decode-printable-string "not a printable string: ~e" s))))
+        (decode-bad 'PrintableString bs))))
 
 (define (decode-utf8string b)
   (if (bytes-utf-8-length b #f)
       (bytes->string/utf-8 b)
-      (error 'decode-utf8string "not a UTF-8 string")))
+      (decode-bad 'UTF8String b)))

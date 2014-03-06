@@ -18,6 +18,7 @@
                      syntax/parse)
          racket/contract
          racket/promise
+         "private/base-types.rkt"
          "private/types.rkt"
          "private/der.rkt"
          "private/base256.rkt")
@@ -40,6 +41,10 @@
          PrintableString
          IA5String
          UTF8String
+
+         ;; private/base-types.rkt
+         printable-string?
+         ia5string?
 
          ;; private/der.rkt
          (contract-out
