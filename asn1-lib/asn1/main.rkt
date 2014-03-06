@@ -19,7 +19,7 @@
          racket/contract
          racket/promise
          "private/types.rkt"
-         "private/encode.rkt"
+         "private/der.rkt"
          "private/base256.rkt")
 (provide define-asn1-type
          Sequence
@@ -41,7 +41,7 @@
          IA5String
          UTF8String
 
-         ;; private/encode.rkt
+         ;; private/der.rkt
          (contract-out
           [DER-encode-hooks
            (parameter/c
