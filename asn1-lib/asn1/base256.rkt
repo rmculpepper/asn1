@@ -25,4 +25,4 @@
           [unsigned->base256
            (-> exact-nonnegative-integer? bytes?)]
           [base256->unsigned
-           (-> bytes? exact-nonnegative-integer?)]
+           (-> bytes? exact-nonnegative-integer?)]))

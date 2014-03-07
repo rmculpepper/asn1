@@ -72,10 +72,12 @@
         [(universal)        0]
         [(application)      #b01000000]
         [(context-specific) #b10000000]
-        [(private)          #b11000000])
+        [(private)          #b11000000]
+        [else (error 'get-tag-bytes "bad class: ~e" class)])
       (case p/c
         [(primitive)   0]
-        [(constructed) #b00100000])
+        [(constructed) #b00100000]
+        [else (error 'get-tag-bytes "bad p/c: ~e" p/c)])
       tagn)))
 
 ;; length-code : (U nat bytes) -> bytes

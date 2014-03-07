@@ -90,14 +90,14 @@
             #:with option #''#f))
 
  (define-syntax-class element
-   (pattern [name:id #:explicit etag:nat type :option-clause]
+   (pattern [name:id :tag-class #:explicit etag:nat type :option-clause]
             #:declare type (expr/c #'asn1-type?)
-            #:with et #'(element-type 'name '(implicit etag)
+            #:with et #'(element-type 'name '(tclass etag)
                                       (asn1-type:explicit-tag type.c)
                                       option))
-   (pattern [name:id #:implicit itag:nat type :option-clause]
+   (pattern [name:id :tag-class #:implicit itag:nat type :option-clause]
             #:declare type (expr/c #'asn1-type?)
-            #:with et #'(element-type 'name '(implicit itag) type.c option))
+            #:with et #'(element-type 'name '(tclass itag) type.c option))
    (pattern [name:id type :option-clause]
             #:declare type (expr/c #'asn1-type?)
             #:with et #'(element-type 'name '#f type.c option))))
