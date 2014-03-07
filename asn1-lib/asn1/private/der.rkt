@@ -394,9 +394,9 @@
       [(asn1-type:choice elts)
        (let choice-loop ([elts elts])
          (match elts
-           [(cons (and elt0 (element-type _ _ et-type _)) rest-elts)
+           [(cons (and elt0 (element-type et-name _ et-type _)) rest-elts)
             (if (tag-matches elt0 frame)
-                (loop et-type (cons type alt-types) #f)
+                (list et-name (loop et-type (cons type alt-types) #f))
                 (choice-loop rest-elts))]
            [_ (error 'DER-decode "tag does not match any alternative in Choice")]))]
       [(asn1-type:explicit-tag type*)
@@ -442,8 +442,30 @@
 (define (DER-decode-value* type c)
   (match type
     [(asn1-type:any)
-     (error 'DER-decode-value
-            "no default decoding rule for ANY")]
+     (match-define (der-frame tagclass p/c tagn content) (bytes->frame c))
+     (unless (eq? tagclass 'universal)
+       (error 'DER-decode-value "non-universal tag found decoding ANY\n  tag: ~a ~a ~a"
+              tagclass tagn p/c))
+     (define te (tagn->tag-entry tagn))
+     (unless te
+       (error 'DER-decode-value "unsupported tag found decoding ANY\n  tag: ~a ~a ~a"
+              tagclass tagn p/c))
+     (unless (equal? p/c (tag-entry-p/c te))
+       (error 'DER-decode-value
+              "primitive/constructed mismatch found decoding ANY\n  tag: ~a ~a ~a\n expected: ~a"
+              tagclass tagn p/c (tag-entry-p/c te)))
+     (define base-type (tag-entry-type te))
+     (case base-type
+       [(SEQUENCE)
+        (for/list ([frame (in-list (bytes->frames content))])
+          ;; Note: type = ANY; reuse it
+          (DER-decode-frame type frame))]
+       [(SET)
+        ;; FIXME: if validating DER of SET, need to check frames are sorted
+        (for/list ([frame (in-list (bytes->frames content))])
+          ;; Note: type = ANY; reuse it
+          (DER-decode-frame type frame))]
+       [else (DER-decode-base* base-type content)])]
     [(asn1-type:base base-type)
      (DER-decode-base* base-type c)]
     [(asn1-type:sequence elts)
@@ -454,6 +476,7 @@
     [(asn1-type:set elts)
      (DER-encode-set* elts c)]
     [(asn1-type:set-of type*)
+     ;; FIXME: if validating DER of SET, need to check frames are sorted
      (for/list ([frame (in-list (bytes->frames c))])
        (DER-decode-frame type* frame))]
     [(asn1-type:explicit-tag type*)

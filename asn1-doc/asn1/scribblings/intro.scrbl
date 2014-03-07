@@ -69,6 +69,7 @@ And here's one representing a reference to a person:
 (define Person (Choice [name IA5String] [number INTEGER]))
 (DER-encode Person '(name "Jean"))
 (DER-encode Person '(number 24601))
+(DER-decode Person (DER-encode Person '(number 24601)))
 ]
 
 Sometimes components of a Choice (and sometimes other structured
@@ -76,12 +77,39 @@ types) must be given alternative tags because their default tags would
 not distinguish between them.
 
 @interaction[#:eval the-eval
-(define DirectoryEntry
+(define Employee
   (Choice [name  #:implicit 0 IA5String]
           [title #:implicit 1 IA5String]))
-(DER-encode DirectoryEntry '(name "Ash"))
-(DER-encode DirectoryEntry '(title "Boomstick Specialist"))
+(DER-encode Employee '(name "Ash"))
+(DER-encode Employee '(title "Boomstick Specialist"))
 ]
+
+If an encoded value does not belong to a type that uses alternative
+tagging, it can be decoded using the type @racket[ANY] instead of the
+specific ASN.1 type to which it belongs. Values cannot be encoded as
+@racket[ANY].
+
+@interaction[#:eval the-eval
+(DER-decode ANY (DER-encode INTEGER 123456))
+(DER-decode ANY (DER-encode IA5String "I am the walrus."))
+]
+
+Structured values decoded as @racket[ANY] do not have symbolic labels;
+those are part of the type, not the encoding.
+
+@interaction[#:eval the-eval
+(DER-decode ANY (DER-encode Point '(sequence [x 123] [y 456] [z 789])))
+(DER-decode ANY (DER-encode Person '(name "Jean")))
+]
+
+Finally, encodings that use context-specific tags, such as
+@racket[Employee] above, cannot be decoded with @racket[ANY]:
+
+@interaction[#:eval the-eval
+(DER-decode ANY (DER-encode Employee '(name "Ash")))
+]
+
+
 
 
 @(close-eval the-eval)
