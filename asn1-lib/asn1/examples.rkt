@@ -42,7 +42,7 @@
 
 #|
 (DER-decode-hooks
- (list (list ANY 'pre (lambda (t b) (list 'ANY b)))))
+ (list (list ANY 'pre (lambda (b) (list 'ANY b)))))
 |#
 
 ;; ----

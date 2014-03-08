@@ -107,7 +107,7 @@
           (get-hook 'pre type hooks))))
   (if hook
       (let ([hook-f (caddr hook)])
-        (let ([b (hook-f type v)])
+        (let ([b (hook-f v)])
           (unless (bytes? b)
             (error 'DER-encode-value
                    "value returned by encode-hook is not bytes\n  value: ~e"
@@ -442,14 +442,14 @@
         (get-hook 'pre type hooks)))
   (if pre-hook
       (let ([pre-hook-f (caddr pre-hook)])
-        (pre-hook-f type c))
+        (pre-hook-f c))
       (let* ([post-hook
               (or (search-hooks 'post alt-types hooks)
                   (get-hook 'post type hooks))]
              [v (DER-decode-value* type c)])
         (if post-hook
             (let ([post-hook-f (caddr post-hook)])
-              (post-hook-f type v))
+              (post-hook-f v))
             v))))
 
 (define (DER-decode-value* type c)
