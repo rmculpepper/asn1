@@ -21,7 +21,6 @@
 
 ;; DER frame (the TLV triple) operations
 
-
 ;; BER (restricted to definite-length) encoding has 3:
 ;; - identifier - class, tag, primitive vs constructed
 ;; - length - number of contents octets
@@ -98,20 +97,20 @@
 
 ;; FIXME: add checking for premature EOF, etc
 
-;; A DER-Frame is (der-frame TagClass P/C TagNum bytes)
-(struct der-frame (tagclass p/c tagn content) #:transparent)
+;; A DER-Frame is (DER-frame TagClass P/C TagNum bytes)
+(struct DER-frame (tagclass p/c tagnum value) #:transparent)
 
-;; bytes->frame : bytes -> DER-Frame
-(define (bytes->frame der)
+;; bytes->DER-frame : bytes -> DER-Frame
+(define (bytes->DER-frame der)
   (define in (open-input-bytes der))
-  (begin0 (read-frame in)
+  (begin0 (read-DER-frame in)
     (unless (eof-object? (peek-char in))
-      (error 'bytes->frame "bytes left over after DER TLV triple"))))
+      (error 'bytes->DER-frame "bytes left over after one TLV frame"))))
 
-;; frame->bytes : DER-Frame -> Bytes
-(define (frame->bytes frame)
+;; DER-frame->bytes : DER-Frame -> Bytes
+(define (DER-frame->bytes frame)
   (match frame
-    [(der-frame tagclass p/c tagn content)
+    [(DER-frame tagclass p/c tagn content)
      (bytes-append (get-tag-bytes tagclass p/c tagn)
                    (length-code content)
                    content)]))
@@ -120,18 +119,18 @@
 (define (bytes->frames der)
   (read-frames (open-input-bytes der)))
 
-;; read-frame : input-port -> DER-Frame
-(define (read-frame in)
+;; read-DER-frame : input-port -> DER-Frame
+(define (read-DER-frame in)
   (let* ([tag (read-tag in)]
          [len (read-length-code in)]
          [c (read-bytes len in)])
-    (der-frame (car tag) (cadr tag) (caddr tag) c)))
+    (DER-frame (car tag) (cadr tag) (caddr tag) c)))
 
 ;; read-frames : input-port -> (listof DER-Frame)
 (define (read-frames in)
   (if (eof-object? (peek-char in))
       null
-      (cons (read-frame in) (read-frames in))))
+      (cons (read-DER-frame in) (read-frames in))))
 
 ;; read-tag : input-port -> (list TagClass P/C TagNum)
 (define (read-tag in)

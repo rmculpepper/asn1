@@ -347,13 +347,13 @@
 ;; ============================================================
 
 (define (DER-read type in)
-  (DER-decode-frame type (read-frame in)))
+  (DER-decode-frame type (read-DER-frame in)))
 
 (define (DER-decode type b)
-  (DER-decode-frame type (bytes->frame b)))
+  (DER-decode-frame type (bytes->DER-frame b)))
 
 (define (DER-decode-frame type frame)
-  (match-define (der-frame tagclass p/c tagn c) frame)
+  (match-define (DER-frame tagclass p/c tagn c) frame)
   (let loop ([type type] [alt-types null] [check-whole-tag? #t])
     ;; check-type : Base-Type -> Void
     (define (check-type base-type)
@@ -375,7 +375,7 @@
 
     (match type
       [(asn1-type:any)
-       (DER-decode-value type (frame->bytes frame))]
+       (DER-decode-value type (DER-frame->bytes frame))]
       [(asn1-type:base base-type)
        (check-type base-type)
        (decode-value)]
@@ -412,7 +412,7 @@
 ;; Checks class and tag number for match; FIXME: check p/c
 (define (tag-matches elt frame)
   ;; (match-define (element-type _ et-tag et-type _) elt)
-  (match-define (der-frame f-tagclass f-p/c f-tagn _) frame)
+  (match-define (DER-frame f-tagclass f-p/c f-tagn _) frame)
   (define et-tags (type->tags elt))
   (for/or ([et-tag (in-list et-tags)])
     ;; FIXME: need to consider p/c !!!
@@ -442,7 +442,7 @@
 (define (DER-decode-value* type c)
   (match type
     [(asn1-type:any)
-     (match-define (der-frame tagclass p/c tagn content) (bytes->frame c))
+     (match-define (DER-frame tagclass p/c tagn content) (bytes->DER-frame c))
      (unless (eq? tagclass 'universal)
        (error 'DER-decode-value "non-universal tag found decoding ANY\n  tag: ~a ~a ~a"
               tagclass tagn p/c))
@@ -534,7 +534,7 @@
                      et-name)]))
 
          (match frames
-           [(cons (and frame0 (der-frame f-tagclass f-p/c f-tagn f-c)) rest-frames)
+           [(cons (and frame0 (DER-frame f-tagclass f-p/c f-tagn f-c)) rest-frames)
             (cond [(tag-matches elt0 frame0)
                    (cons (list et-name (DER-decode-frame et-type frame0))
                          (loop rest-elts rest-frames))]

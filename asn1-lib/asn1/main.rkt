@@ -21,6 +21,7 @@
          "private/base-types.rkt"
          "private/types.rkt"
          "private/der.rkt"
+         "private/der-frame.rkt"
          "private/base256.rkt")
 (provide define-asn1-type
          Sequence
@@ -46,14 +47,14 @@
          printable-string?
          ia5string?
 
-         ;; private/der.rkt
          (contract-out
+          ;; private/der.rkt
           [DER-encode-hooks
            (parameter/c
             (listof (list/c asn1-type? 'pre (-> asn1-type? any/c bytes?))))]
           [DER-decode-hooks
            (parameter/c
-            (listof (list/c asn1-type? (or/c 'pre 'post) (-> asn1-type? bytes? any/c))))]
+            (listof (list/c asn1-type? (or/c 'pre 'post) (-> asn1-type? any/c any/c))))]
           [DER-encode
            (-> asn1-type? any/c bytes?)]
           [DER-encode-value
@@ -64,6 +65,18 @@
            (-> asn1-type? bytes? any/c)]
           [DER-read
            (-> asn1-type? input-port? any/c)]
+          ;; private/der-frame.rkt
+          [struct DER-frame
+                  ([tagclass (or/c 'universal 'application 'private 'context-specific)]
+                   [p/c (or/c 'primitive 'constructed)]
+                   [tagnum exact-nonnegative-integer?]
+                   [value bytes?])]
+          [DER-frame->bytes
+           (-> DER-frame? bytes?)]
+          [bytes->DER-frame
+           (-> bytes? DER-frame?)]
+          [read-DER-frame
+           (-> input-port? DER-frame?)]
           ))
 
 ;; ============================================================
