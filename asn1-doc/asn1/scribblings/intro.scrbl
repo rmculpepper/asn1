@@ -23,7 +23,7 @@ ASN.1 has several familiar base types, such as @racket[INTEGER] and
 @racket[IA5String]. (IA5 is another term for ASCII---the 7-bit
 character set.)
 
-Racket values may be encoded as instances of an ASN.1 type using the
+Racket values are encoded as instances of an ASN.1 type using the
 @racket[DER-encode] function, which produces a bytestring
 (@racket[bytes?]):
 
@@ -32,19 +32,17 @@ Racket values may be encoded as instances of an ASN.1 type using the
 (DER-encode IA5String "I am the walrus.")
 ]
 
-A DER bytestring can be decoded according to an ASN.1 type to get a
-Racket value:
+A DER bytestring is decoded according to an ASN.1 type to get a Racket
+value using the @racket[DER-decode] function:
 
 @interaction[#:eval the-eval
 (DER-decode INTEGER (DER-encode INTEGER 123456))
 (DER-decode IA5String (DER-encode IA5String "I am the walrus."))
 ]
 
-@;{ Decoding with ANY ...}
-
-You can build more complex types using forms such as
-@racket[Sequence], @racket[Choice], and @racket[SequenceOf]. For
-example, here is an ASN.1 type for a sequence of integers:
+Complex types are created using forms such as @racket[Sequence],
+@racket[Choice], and @racket[SequenceOf]. For example, here is an
+ASN.1 type for a sequence of integers:
 
 @interaction[#:eval the-eval
 (define Integers (SequenceOf INTEGER))
@@ -84,7 +82,7 @@ not distinguish between them.
 (DER-encode Employee '(title "Boomstick Specialist"))
 ]
 
-If an encoded value does not belong to a type that uses alternative
+If an encoded value uses only built-in types without alternative
 tagging, it can be decoded using the type @racket[ANY] instead of the
 specific ASN.1 type to which it belongs. Values cannot be encoded as
 @racket[ANY].
