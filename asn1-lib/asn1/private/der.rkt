@@ -126,19 +126,21 @@
     [(asn1-type:sequence elts)
      (encode-sequence (filter values (DER-encode-sequence* elts v)))]
     [(asn1-type:sequence-of type*)
-     (unless (list? v)
-       (error 'DER-encode-value "bad value for SequenceOf type\n  value: ~e" v))
-     (encode-sequence
-      (for/list ([v* (in-list v)])
-        (DER-encode type* v* #f)))]
+     (match v
+       [(list 'sequence-of v*s ...)
+        (encode-sequence
+         (for/list ([v* (in-list v*s)])
+           (DER-encode type* v* #f)))]
+       [_ (error 'DER-encode-value "bad value for SequenceOf type\n  value: ~e" v)])]
     [(asn1-type:set elts)
      (encode-set (filter values (DER-encode-set* elts v)))]
     [(asn1-type:set-of type*)
-     (unless (list? v)
-       (error 'DER-encode-value "bad value for SetOf type\n  value: ~e" v))
-     (encode-set
-      (for/list ([v* (in-list v)])
-        (DER-encode type* v* #f)))]
+     (match v
+       [(list 'set-of v*s ...)
+        (encode-set
+         (for/list ([v* (in-list v*s)])
+           (DER-encode type* v* #f)))]
+       [_ (error 'DER-encode-value "bad value for SetOf type\n  value: ~e" v)])]
     [(asn1-type:explicit-tag type*)
      (encode-sequence (list (DER-encode type* v)))]
     [(asn1-type:tag _ _)
@@ -470,28 +472,31 @@
      (define base-type (tag-entry-type te))
      (case base-type
        [(SEQUENCE)
-        (for/list ([frame (in-list (bytes->frames content))])
-          ;; Note: type = ANY; reuse it
-          (DER-decode-frame type frame))]
+        (cons 'sequence-of
+              (for/list ([frame (in-list (bytes->frames content))])
+                ;; Note: type = ANY; reuse it
+                (DER-decode-frame type frame)))]
        [(SET)
         ;; FIXME: if validating DER of SET, need to check frames are sorted
-        (for/list ([frame (in-list (bytes->frames content))])
-          ;; Note: type = ANY; reuse it
-          (DER-decode-frame type frame))]
+        (cons 'set-of
+              (for/list ([frame (in-list (bytes->frames content))])
+                ;; Note: type = ANY; reuse it
+                (DER-decode-frame type frame)))]
        [else (DER-decode-base* base-type content)])]
     [(asn1-type:base base-type)
      (DER-decode-base* base-type c)]
     [(asn1-type:sequence elts)
      (DER-decode-sequence* elts (bytes->frames c))]
     [(asn1-type:sequence-of type*)
-     (for/list ([frame (in-list (bytes->frames c))])
-       (DER-decode-frame type* frame))]
+     (cons 'sequence-of
+           (for/list ([frame (in-list (bytes->frames c))])
+             (DER-decode-frame type* frame)))]
     [(asn1-type:set elts)
-     (DER-encode-set* elts c)]
+     (DER-decode-set* elts (check-sorted 'Set (bytes->frames c)))]
     [(asn1-type:set-of type*)
-     ;; FIXME: if validating DER of SET, need to check frames are sorted
-     (for/list ([frame (in-list (bytes->frames c))])
-       (DER-decode-frame type* frame))]
+     (cons 'set-of
+           (for/list ([frame (in-list (check-sorted 'SetOf (bytes->frames c)))])
+             (DER-decode-frame type* frame)))]
     [(asn1-type:explicit-tag type*)
      (DER-decode type* (bytes->frames c))]
     [(asn1-type:tag _ _)
@@ -591,6 +596,15 @@
              null
              (error 'DER-decode-value
                     "leftover components in encoded Set"))]))))
+
+(define (check-sorted what frames)
+  ;; Set/SetOf elements must be sorted
+  (let loop ([bs (map DER-frame->bytes frames)])
+    (when (and (pair? bs) (pair? (cdr bs)))
+      (unless (bytes<? (car bs) (cadr bs))
+        (error 'DER-decode-value "invalid order of elements within encoded ~a" what))
+      (loop (cdr bs))))
+  frames)
 
 ;; ----
 

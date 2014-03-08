@@ -21,22 +21,91 @@ otherwise.
 
 @section{Base Types}
 
-@deftogether[[
-@defthing[ANY asn1-type?]
-@defthing[BOOLEAN asn1-type?]
-@defthing[INTEGER asn1-type?]
-@defthing[BIT-STRING asn1-type?]
-@defthing[OCTET-STRING asn1-type?]
-@defthing[NULL asn1-type?]
-@defthing[OBJECT-IDENTIFIER asn1-type?]
-@defthing[PrintableString asn1-type?]
-@defthing[IA5String asn1-type?]
-@defthing[UTF8String asn1-type?]
-]]{
+@defthing[ANY asn1-type?]{
 
-Basic ASN.1 types.
+Unknown or context-dependent type.
 }
 
+@defthing[BOOLEAN asn1-type?]{
+
+Type of booleans. Corresponds to Racket's @racket[boolean?].
+}
+
+@defthing[INTEGER asn1-type?]{
+
+Type of arbitrary-precision, signed integers. Corresponds to Racket's
+@racket[exact-integer?].
+}
+
+@defthing[BIT-STRING asn1-type?]{
+
+Type of bit strings, including those that end in a partial octet.
+
+@;{FIXME: support partial-octet bit strings ...}
+}
+
+@defthing[OCTET-STRING asn1-type?]{
+
+Type of octet strings. Corresponds to Racket's @racket[bytes?].
+}
+
+@defthing[NULL asn1-type?]{
+
+Indicates no information. Represented by the Racket value @racket[#f].
+}
+
+@defthing[OBJECT-IDENTIFIER asn1-type?]{
+
+Type of references to ``objects'' in a hierarchical
+registry. Represented by Racket @racket[(listof
+exact-nonnegative-integer?)] of length at least 2, where the first
+integer is between 0 and 2 (inclusive) and the second is between 0 and
+39 (inclusive). There is no upper bound on subsequent integers.
+
+@examples[
+(define rsadsi '(1 2 840 113549))
+(define pkcs1 (append rsadsi '(1 1)))
+]
+}
+
+@defthing[PrintableString asn1-type?]{
+
+Subset of ASCII strings containing only the ``printable'' characters,
+which consist of @litchar{A} to @litchar{Z}, @litchar{a} to
+@litchar{z}, @litchar{0} to @litchar{9}, the space character, and the
+characters in @litchar{'()+,-./:=?}.
+
+Represented by Racket strings satisfying the
+@racket[printable-string?] predicate.
+}
+
+@defproc[(printable-string? [v any/c]) boolean?]{
+
+Returns @racket[#t] if @racket[v] is a string containing only the
+characters allowed by @racket[PrintableString], @racket[#f] otherwise.
+}
+
+@defthing[IA5String asn1-type?]{
+
+Type of ASCII string (IA5 is ASCII). Note that ASCII/IA5 consists of
+only 7-bit characters; it is not the same as Latin-1.
+
+Represented by Racket strings satisfying the @racket[ia5string?]
+predicate.
+}
+
+@defproc[(ia5string? [v any/c]) boolean?]{
+
+Returns @racket[#t] if @racket[v] is a string containing only the
+characters allowed by @racket[IA5String] (that is, characters 0
+through 127), @racket[#f] otherwise.
+}
+
+@defthing[UTF8String asn1-type?]{
+
+Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
+@racket[string?].
+}
 
 @section{Structured Types}
 
@@ -56,7 +125,6 @@ Basic ASN.1 types.
 
 Corresponds to the ASN.1 SEQUENCE type form.
 }
-
 
 @defform[(SequenceOf component-type)
          #:contracts ([component-type asn1-type?])]{
@@ -97,7 +165,7 @@ Corresponds the the ASN.1 SET OF type form.
 
 ASN.1 defines many additional base types that are unsupported by this
 library. An example is T61String, which has escape codes for changing
-the interpretation of the character set. It is infeasible for this
+the interpretation of following characters. It is infeasible for this
 library to handle the validation and interpretation of T61String, so
 it does not define the type at all. However, an application may define
 the type (or an approximation, if full validation and interpretation
@@ -119,9 +187,8 @@ accepted as for @racket[OCTET-STRING]---that is, bytestrings
 none. Likewise when decoding. Additional validation and interpretation
 can be attached to the type via @secref["der-hooks"].
 
-An alternative to @racket[Tag] is a single-alternative @racket[Choice]
-type. The effect is the same except for the symbolic label on the
-Racket values.
+An alternative is a @racket[Choice] type with a single variant. The
+effect is the same except for the symbolic label on the Racket values.
 
 @interaction[#:eval the-eval
 (define T61String*

@@ -29,6 +29,7 @@ Racket values are encoded as instances of an ASN.1 type using the
 
 @interaction[#:eval the-eval
 (DER-encode INTEGER 123456)
+(DER-encode INTEGER (expt 10 30))
 (DER-encode IA5String "I am the walrus.")
 ]
 
@@ -37,6 +38,7 @@ value using the @racket[DER-decode] function:
 
 @interaction[#:eval the-eval
 (DER-decode INTEGER (DER-encode INTEGER 123456))
+(DER-decode INTEGER (DER-encode INTEGER (expt 10 30)))
 (DER-decode IA5String (DER-encode IA5String "I am the walrus."))
 ]
 
@@ -46,8 +48,8 @@ ASN.1 type for a sequence of integers:
 
 @interaction[#:eval the-eval
 (define Integers (SequenceOf INTEGER))
-(DER-encode Integers '(1 2 3 -1000 #e1e20))
-(DER-decode Integers (DER-encode Integers '(1 2 3 -1000 #e1e20)))
+(DER-encode Integers '(sequence-of 1 2 3 -1000))
+(DER-decode Integers (DER-encode Integers '(sequence-of 1 2 3 -1000)))
 ]
 
 Unlike @racket[SequenceOf], @racket[Sequence] and @racket[Choice] take
@@ -93,7 +95,8 @@ specific ASN.1 type to which it belongs. Values cannot be encoded as
 ]
 
 Structured values decoded as @racket[ANY] do not have symbolic labels;
-those are part of the type, not the encoding.
+those are part of the type, not the encoding. Sequences are decoded as
+if they were @racket[(SequenceOf ANY)].
 
 @interaction[#:eval the-eval
 (DER-decode ANY (DER-encode Point '(sequence [x 123] [y 456] [z 789])))
@@ -106,8 +109,6 @@ Finally, encodings that use context-specific tags, such as
 @interaction[#:eval the-eval
 (DER-decode ANY (DER-encode Employee '(name "Ash")))
 ]
-
-
 
 
 @(close-eval the-eval)
