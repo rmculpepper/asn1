@@ -57,6 +57,14 @@
 
 ;; ============================================================
 
+;; encode hooks:
+;;  'pre : any -> any
+;;  'encode : any -> bytes
+
+;; decode hooks:
+;;  'decode : bytes -> any
+;;  'post : any -> any
+
 ;; DER-encode : T V[T] -> E[T]
 ;; - bytes/integer/etc    Base-Type                          -> E[_]
 ;; - (SequenceOf T)       (list V[T] ...)                    -> E[_]
@@ -67,58 +75,57 @@
 ;; - (Choice [L T] ...)   (list L V[T])                      -> E[_]
 
 (define (DER-encode type v [alt-tag #f])
-  (let loop ([type type] [alt-tag alt-tag] [alt-types null])
+  (define hooks (DER-encode-hooks))
+  (let loop ([type type] [v-in v] [alt-tag alt-tag] [encode-hook-f-in #f])
+    ;; Run pre-hooks until we find an encode-hook
+    (define pre-hook-f
+      (and (not encode-hook-f)
+           (let ([pre-hook (get-hook 'pre type hooks)])
+             (and pre-hook (caddr pre-hook)))))
+    (define encode-hook-f
+      (or encode-hook-f-in
+          (let ([encode-hook (get-hook 'encode type hooks)])
+            (and encode-hook (caddr encode-hook)))))
+    (define v (if pre-hook (let ([pre-hook-f (caddr pre-hook)]) (pre-hook-f v-in)) v-in))
+    (define (encode-value)
+      (if encode-hook-f
+          (encode-hook-f v)
+          (DER-encode-value type v)))
     (match type
       [(asn1-type:any)
        ;; Note: no wrapping; encoder must produce whole TLV triple
        ;; alt-tag must be #f; can't implicitly tag an ANY value
-       (DER-encode-value type v alt-types)]
+       (encode-value)]
       [(asn1-type:base base-type)
-       (wrap base-type (DER-encode-value type v alt-types) alt-tag)]
+       (wrap base-type (encode-value) alt-tag)]
       [(asn1-type:sequence _)
-       (wrap 'SEQUENCE (DER-encode-value type v alt-types) alt-tag)]
+       (wrap 'SEQUENCE (encode-value) alt-tag)]
       [(asn1-type:sequence-of _)
-       (wrap 'SEQUENCE (DER-encode-value type v alt-types) alt-tag)]
+       (wrap 'SEQUENCE (encode-value) alt-tag)]
       [(asn1-type:set _)
-       (wrap 'SET (DER-encode-value type v alt-types) alt-tag)]
+       (wrap 'SET (encode-value) alt-tag)]
       [(asn1-type:set-of _)
-       (wrap 'SET (DER-encode-value type v alt-types) alt-tag)]
+       (wrap 'SET (encode-value) alt-tag)]
       [(asn1-type:choice elts)
        (match v
          [(list (? symbol? sym) v*)
           (match-define (element-type _ tag* type* _)
             (for/or ([elt (in-list elts)])
               (and (eq? (element-type-name elt) sym) elt)))
-          (DER-encode type* v* tag*)]
+          (loop type* v* tag* encode-hook-f)]
          [_ (error 'asn1-encode "bad value for Choice type\n  value: ~e" v)])]
       [(asn1-type:tag tag* type*)
        ;; Outer implicit tag takes precedence; prefer alt-tag
-       (loop type* (or alt-tag tag*) (cons type alt-types))]
+       (loop type* v (or alt-tag tag*) encode-hook-f)]
       [(asn1-type:explicit-tag _)
-       (wrap 'SEQUENCE (DER-encode-value type v alt-types) alt-tag)]
+       (wrap 'SEQUENCE (encode-value) alt-tag)]
       [(asn1-type:defined name promise)
-       (loop (force promise) alt-tag (cons type alt-types))])))
+       (loop (force promise) v alt-tag encode-hook-f)])))
 
-(define (DER-encode-value type v [alt-types null])
-  ;; Search alt-types back-to-front, then type, for hook to apply
-  (define hook
-    (let ([hooks (DER-encode-hooks)])
-      (or (search-hooks 'pre alt-types hooks)
-          (get-hook 'pre type hooks))))
-  (if hook
-      (let ([hook-f (caddr hook)])
-        (let ([b (hook-f v)])
-          (unless (bytes? b)
-            (error 'DER-encode-value
-                   "value returned by encode-hook is not bytes\n  value: ~e"
-                   b))
-          b))
-      (DER-encode-value* type v)))
-
-(define (DER-encode-value* type v)
+(define (DER-encode-value type v)
   (match type
     [(asn1-type:any)
-     ;; To make ANY work, need to use encode hook
+     ;; ANY must be handled by encode hook
      (error 'DER-encode-value
             "no default encoding rule for ANY\n  value: ~e" v)]
     [(asn1-type:base base-type)
