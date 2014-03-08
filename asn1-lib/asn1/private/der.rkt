@@ -67,7 +67,7 @@
 ;; - (Choice [L T] ...)   (list L V[T])                      -> E[_]
 
 (define (DER-encode type v [alt-tag #f])
-  (let loop ([type type] [alt-types null])
+  (let loop ([type type] [alt-tag alt-tag] [alt-types null])
     (match type
       [(asn1-type:any)
        ;; Note: no wrapping; encoder must produce whole TLV triple
@@ -91,10 +91,13 @@
               (and (eq? (element-type-name elt) sym) elt)))
           (DER-encode type* v* tag*)]
          [_ (error 'asn1-encode "bad value for Choice type\n  value: ~e" v)])]
+      [(asn1-type:tag tag* type*)
+       ;; Outer implicit tag takes precedence; prefer alt-tag
+       (loop type* (or alt-tag tag*) (cons type alt-types))]
       [(asn1-type:explicit-tag _)
        (wrap 'SEQUENCE (DER-encode-value type v alt-types) alt-tag)]
       [(asn1-type:defined name promise)
-       (loop (force promise) (cons type alt-types))])))
+       (loop (force promise) alt-tag (cons type alt-types))])))
 
 (define (DER-encode-value type v [alt-types null])
   ;; Search alt-types back-to-front, then type, for hook to apply
@@ -138,10 +141,12 @@
         (DER-encode type* v* #f)))]
     [(asn1-type:explicit-tag type*)
      (encode-sequence (list (DER-encode type* v)))]
+    [(asn1-type:tag _ _)
+     (error 'DER-encode-value "bad type\n  type: ~e" type)]
     [(asn1-type:choice _)
-     (error 'DER-encode-value "internal error: bad type\n  type: ~e" type)]
+     (error 'DER-encode-value "bad type\n  type: ~e" type)]
     [(asn1-type:defined _ _)
-     (error 'DER-encode-value "internal error: bad type\n  type: ~e" type)]))
+     (error 'DER-encode-value "bad type\n  type: ~e" type)]))
 
 (define (DER-encode-base* base-type v)
   (define (bad-value [expected #f])
@@ -399,6 +404,14 @@
                 (list et-name (loop et-type (cons type alt-types) #f))
                 (choice-loop rest-elts))]
            [_ (error 'DER-decode "tag does not match any alternative in Choice")]))]
+      [(asn1-type:tag tag type*)
+       (unless (equal? tagclass (car tag))
+         (error 'DER-decode "tag class mismatch\n  expected: ~s\n  decoded: ~s"
+                (car tag) tagclass))
+       (unless (equal? tagn (cadr tag))
+         (error 'DER-decode "tag number mismatch\n  expected: ~s\n  decoded: ~s"
+                (cadr tag) tagn))
+       (loop type* (cons type alt-types) #f)]
       [(asn1-type:explicit-tag type*)
        ;; Tag has already been checked by enclosing CHOICE, SEQUENCE, or SET
        (unless (equal? p/c 'constructed)
@@ -481,10 +494,12 @@
        (DER-decode-frame type* frame))]
     [(asn1-type:explicit-tag type*)
      (DER-decode type* (bytes->frames c))]
+    [(asn1-type:tag _ _)
+     (error 'DER-decode-value "bad type\n  type: ~e" type)]
     [(asn1-type:choice elts)
-     (error 'DER-decode-value "internal error: bad type\n  type: ~e" type)]
+     (error 'DER-decode-value "bad type\n  type: ~e" type)]
     [(asn1-type:defined name promise)
-     (error 'DER-decode-value "internal error: bad type\n  type: ~e" type)]))
+     (error 'DER-decode-value "bad type\n  type: ~e" type)]))
 
 (define (DER-decode-base* base-type c)
   (define (bad-value [expected #f])

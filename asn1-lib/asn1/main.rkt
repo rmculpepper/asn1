@@ -29,6 +29,7 @@
          Set
          SetOf
          Choice
+         Tag
 
          ;; private/types.rkt
          asn1-type?
@@ -141,6 +142,15 @@
   (syntax-parser
    [(Choice e:element ...)
     #'(asn1-type:choice (check-choice-types (list e.et ...)))]))
+
+(define-syntax Tag
+  (syntax-parser
+   [(Tag :tag-class #:explicit etag:nat type)
+    #:declare type (expr/c #'asn1-type?)
+    #'(make-tag-type '(tclass etag) (asn1-type:explicit-tag type.c))]
+   [(Tag :tag-class #:implicit itag:nat type)
+    #:declare type (expr/c #'asn1-type?)
+    #'(make-tag-type '(tclass itag) type.c)]))
 
 ;; ============================================================
 

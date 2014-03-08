@@ -40,5 +40,11 @@
 
 (define-asn1-type ECPoint OCTET-STRING)
 
+#|
 (DER-decode-hooks
  (list (list ANY 'pre (lambda (t b) (list 'ANY b)))))
+|#
+
+;; ----
+
+(define T61String (Tag #:universal #:implicit 20 OCTET-STRING))

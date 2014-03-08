@@ -95,7 +95,7 @@ Decodes the raw value component @racket[b] as ASN.1 type
 @racket[type], producing a Racket value.
 }
 
-@section{DER Encoding and Decoding Hooks}
+@section[#:tag "der-hooks"]{DER Encoding and Decoding Hooks}
 
 Encoding and decoding can be modified through type-indexed hooks,
 which control the encoding and decoding of the @emph{value} components
@@ -145,11 +145,10 @@ otherwise supported by this library. For example, the ASN.1 type
 T61String could be defined and used as follows:
 
 @interaction[#:eval the-eval
-(define T61String
-  (Choice [t61string #:universal #:implicit 20 OCTET-STRING]))
+(define T61String (Tag #:universal #:implicit 20 OCTET-STRING))
 (parameterize ((DER-encode-hooks
-                (list (list T61String 'pre (lambda (t b) b)))))
-  (DER-encode T61String '(t61string #"trust me on this encoding")))
+                (list (list T61String 'pre (lambda (t v) (string->bytes/latin-1 v))))))
+  (DER-encode T61String "looks like ASCII to me"))
 ]
 }
 

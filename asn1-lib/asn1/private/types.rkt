@@ -33,6 +33,7 @@
 ;; - (asn1-type:set (list Asn1-Element-Type ...))
 ;; - (asn1-type:set-of Asn1-Type)
 ;; - (asn1-type:choice (list Asn1-Element-Type ...))
+;; - (asn1-type:tag Tag Asn1-Type)
 ;; - (asn1-type:ref symbol Asn1-Type)
 ;; - (asn1-type:explicit-tag Asn1-Type)
 (struct asn1-type () #:transparent)
@@ -43,6 +44,7 @@
 (struct asn1-type:set asn1-type (elts) #:transparent)
 (struct asn1-type:set-of asn1-type (elt) #:transparent)
 (struct asn1-type:choice asn1-type (elts) #:transparent)
+(struct asn1-type:tag asn1-type (tag type) #:transparent)
 (struct asn1-type:defined asn1-type (name promise) #:transparent)
 (struct asn1-type:explicit-tag asn1-type (type) #:transparent)
 
@@ -63,6 +65,7 @@
 ;; ----------------------------------------
 
 (define (check-sequence-types ets)
+  (check-elements 'Sequence ets)
   ;; All runs of optional components in a SEQUENCE must have distinct
   ;; tags, and their tags must be distinct from following required
   ;; component. (p 220)
@@ -70,12 +73,36 @@
   ets)
 
 (define (check-set-types ets)
+  (check-elements 'Set ets)
   ;; All components of a SET must have distinct tags. (p226)
   (check-duplicate-types 'Set ets))
 
 (define (check-choice-types ets)
+  (check-elements 'Choice ets)
   ;; All components of a CHOICE must have distinct tags. (p236)
   (check-duplicate-types 'Choice ets))
+
+(define (make-tag-type tag type)
+  (check-can-tag 'Tag tag type)
+  (asn1-type:tag tag type))
+
+(define (check-can-tag who tag type)
+  ;; Can't implicit-tag a CHOICE type.
+  (when (and (pair? tag) (eq? (car tag) 'implicit))
+    (match type
+      [(asn1-type:any)
+       (error who "indeterminate tag")]
+      [(asn1-type:choice _)
+       (error who "indeterminate tag")]
+      [(asn1-type:defined _ promise)
+       (check-can-tag who tag (force promise))]
+      [_ (void)])))
+
+(define (check-elements who ets)
+  (for ([et (in-list ets)])
+    (match et
+      [(element-type name tag type _)
+       (check-can-tag who tag type)])))
 
 (define (check-duplicate-types who ets)
   (define tags (apply append (map type->tags ets)))
