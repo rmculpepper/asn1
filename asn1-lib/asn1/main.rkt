@@ -23,8 +23,7 @@
          "private/der.rkt"
          "private/der-frame.rkt"
          "private/base256.rkt")
-(provide define-asn1-type
-         Sequence
+(provide Sequence
          SequenceOf
          Set
          SetOf

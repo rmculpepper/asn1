@@ -12,12 +12,12 @@
 
 ;; ---
 
-(define-asn1-type ECDomainParameters
+(define ECDomainParameters
   (Choice [ecParameters ECParameters]
           [namedCurve OBJECT-IDENTIFIER]
           [implicitlyCA NULL]))
 
-(define-asn1-type ECParameters
+(define ECParameters
   (Sequence [version   ECPVer]
             [field     FieldID]
             [curve     Curve]
@@ -25,20 +25,20 @@
             [order     INTEGER]
             [cofactor  INTEGER #:optional]))
 
-(define-asn1-type FieldID
+(define FieldID
   (Sequence [fieldType OBJECT-IDENTIFIER]
             [parameters ANY]))
 
-(define-asn1-type ECPVer INTEGER)
+(define ECPVer INTEGER)
 
-(define-asn1-type Curve
-  [Sequence [a FieldElement]
+(define Curve
+  (Sequence [a FieldElement]
             [b FieldElement]
-            [seed BIT-STRING #:optional]])
+            [seed BIT-STRING #:optional]))
 
-(define-asn1-type FieldElement OCTET-STRING)
+(define FieldElement OCTET-STRING)
 
-(define-asn1-type ECPoint OCTET-STRING)
+(define ECPoint OCTET-STRING)
 
 #|
 (DER-decode-hooks
