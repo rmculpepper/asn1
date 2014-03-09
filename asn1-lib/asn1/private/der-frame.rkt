@@ -98,7 +98,7 @@
 ;; FIXME: add checking for premature EOF, etc
 
 ;; A DER-Frame is (DER-frame TagClass P/C TagNum bytes)
-(struct DER-frame (tagclass p/c tagnum value) #:transparent)
+(struct DER-frame (tagclass tagkind tagnum value) #:transparent)
 
 ;; bytes->DER-frame : bytes -> DER-Frame
 (define (bytes->DER-frame der)

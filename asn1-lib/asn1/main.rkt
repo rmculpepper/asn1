@@ -83,7 +83,7 @@
           ;; private/der-frame.rkt
           [struct DER-frame
                   ([tagclass (or/c 'universal 'application 'private 'context-specific)]
-                   [p/c (or/c 'primitive 'constructed)]
+                   [tagkind (or/c 'primitive 'constructed)]
                    [tagnum exact-nonnegative-integer?]
                    [value bytes?])]
           [DER-frame->bytes

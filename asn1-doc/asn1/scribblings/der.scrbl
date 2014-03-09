@@ -53,12 +53,12 @@ Reads one DER TLV triple from @racket[in] and decodes it as
 
 @defstruct*[DER-frame 
             ([tagclass (or/c 'universal 'private 'application 'context-sensitive)]
-             [p/c (or/c 'primitive 'constructed)]
+             [tagkind (or/c 'primitive 'constructed)]
              [tagnum exact-nonnegative-integer?]
              [value bytes?])]{
 
 Represents a decomposed TLV triple. The tag is broken down into the
-@racket[tagclass], @racket[p/c], and @racket[tagnum] fields. The
+@racket[tagclass], @racket[tagkind], and @racket[tagnum] fields. The
 length is not represented; it is computed from the length of the
 @racket[value] field.
 }
