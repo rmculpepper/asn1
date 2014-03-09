@@ -19,12 +19,7 @@ Returns @racket[#t] if @racket[v] is an ASN.1 type, @racket[#f]
 otherwise.
 }
 
-@section{Base Types}
-
-@defthing[ANY asn1-type?]{
-
-Unknown or context-dependent type.
-}
+@section[#:tag "base-types"]{Base Types}
 
 @defthing[BOOLEAN asn1-type?]{
 
@@ -245,6 +240,33 @@ Corresponds to the ASN.1 SEQUENCE OF type form.
          asn1-type?]{
 
 Corresponds the the ASN.1 SET OF type form.
+}
+
+
+@section[#:tag "any-type"]{The ANY Type}
+
+@defthing[ANY asn1-type?]{
+
+Unknown or context-dependent type.
+
+There are no built-in encoding rules for @racket[ANY]. The built-in
+decoding rules handle the base types listed in @secref["base-types"]
+with their normal tags, and they treat all sequence values as
+@racket[(SequenceOf ANY)] and all set values as @racket[(SetOf
+ANY)]. Non-universal tags cannot be decoded using @racket[ANY].
+
+Unlike all other types, a decoder hook for @racket[ANY] receives the
+full TLV triple instead of only the value component, and an encoder
+hook for @racket[ANY] must produce a full TLV triple instead of only
+the value component.
+
+@interaction[#:eval the-eval
+(define ANY-as-bytes (Wrap ANY #:decode (lambda (b) b)))
+(define IA5String-as-bytes (Wrap IA5String #:decode (lambda (b) b)))
+(DER-encode IA5String "abc")
+(DER-decode IA5String-as-bytes (DER-encode IA5String "abc"))
+(DER-decode ANY-as-bytes (DER-encode IA5String "abc"))
+]
 }
 
 
