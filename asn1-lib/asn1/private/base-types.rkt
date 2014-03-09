@@ -16,8 +16,6 @@
 ;; Base types and tags.
 
 #lang racket/base
-(require racket/match
-         racket/contract/base)
 (provide type->tag-entry
          tagn->tag-entry
          tag-entry-type
@@ -26,7 +24,8 @@
          tag-entry-tag
 
          ia5string?
-         printable-string?)
+         printable-string?
+         (struct-out bit-string))
 
 ;; Reference: http://luca.ntop.org/Teaching/Appunti/asn1.html
 
@@ -34,7 +33,7 @@
   '(universal application private context-specific))
 
 (define type-tags
-  '([BOOLEAN            1   primitive]  ;; !!!
+  '([BOOLEAN            1   primitive]
     [INTEGER            2   primitive]
     [BIT-STRING         3   primitive]
     [OCTET-STRING       4   primitive]
@@ -50,11 +49,10 @@
     [IA5String         22   primitive]
     ;; [UTCTime           23   primitive]
 
-    ;; !!!
     ;; [UniversalString   28   primitive] ;; UCS4
     ;; [BMPString         30   primitive] ;; UCS2
     [UTF8String        12   primitive] ;; UTF8
-    ;; [GeneralizedTime   24   primitive] ;; !!!!
+    ;; [GeneralizedTime   24   primitive]
     ))
 
 ;; A Tag is (list TagClass TagNumber)
@@ -85,8 +83,7 @@
 (define (printable-string? s)
   (and (string? s) (regexp-match? #rx"^[-a-zA-Z0-9 '()+,./:=?]*$" s)))
 
-;; ============================================================
-
+;; ----------------------------------------
 ;; INTEGER:
 ;; base-256, two's-complement (!!), most significant octet first
 ;; zero encoded as 1 octet
@@ -99,3 +96,12 @@
 ;; first octet is 40*c1 + c2
 ;; following octets are c3, ... cN encoded as follows:
 ;;   base-128, most-significant first, high bit set on all but last octet of encoding
+
+;; ----------------------------------------
+;; BIT STRING
+
+;; A Bit-String is (bit-string Bytes Nat)
+;; bytes is bytestring; bit 0 of bitstring is high bit (value 128) of first octet
+;; unused in [0,7], indicates how many low bits in last octet are meaningless
+;; bit-length is (bytes-length bytes) * 8 - unused
+(struct bit-string (bytes unused) #:transparent)

@@ -273,30 +273,26 @@
          value
          more))
 
-;; encode-boolean : boolean -> bytes
+;; encode-boolean : Boolean -> Bytes
 (define (encode-boolean b)
   (unless (boolean? b) (encode-bad 'BOOLEAN b 'boolean?))
-  (if b #"\1" #"\0"))
+  (if b #"\377" #"\0"))
 
-;; encode-bit-string : bytes nat -> bytes
-(define (encode-bit-string bits trailing-unused)
-  (unless (bytes? bits)
-    (encode-bad 'BIT-STRING bits #:more "\n  trailing unused bits: ~e" trailing-unused))
-  (unless (and (exact-nonnegative-integer? trailing-unused)
-               (<= 0 trailing-unused 7))
-    (encode-bad 'BIT-STRING bits #:more "\n  trailing unused bits: ~e" trailing-unused
-                #:msg "trailing unused bits out of range [0,7]"))
-  (cond [(zero? (bytes-length bits))
-         (unless (zero? trailing-unused)
-           (encode-bad 'BIT-STRING bits
-                       #:more (format "\n  trailing unused bits: ~e" trailing-unused)
-                       #:msg "trailing unused bits non-zero for empty bit string"))]
-        [else
-         (unless (zero? (bitwise-bit-field (bytes-ref bits (sub1 (bytes-length bits))) 0 trailing-unused))
-           (encode-bad 'BIT-STRING bits
-                       #:more (format "\n  trailing unused bits: ~e" trailing-unused)
-                       #:msg "trailing unused bits are not 0"))])
-  (bytes-append (bytes trailing-unused) bits))
+;; encode-bit-string : Bit-String -> Bytes
+(define (encode-bit-string bs)
+  (match bs
+    [(bit-string bits trailing-unused)
+     (cond [(zero? (bytes-length bits))
+            (unless (zero? trailing-unused)
+              (encode-bad 'BIT-STRING bs
+                          #:msg "trailing unused bits non-zero for empty bit string"))]
+           [else
+            (unless (zero? (bitwise-bit-field (bytes-ref bits (sub1 (bytes-length bits)))
+                                              0 trailing-unused))
+              (encode-bad 'BIT-STRING bs
+                          #:msg "trailing unused bits are not 0"))])
+     (bytes-append (bytes trailing-unused) bits)]
+    [_ (encode-bad 'BIT-STRING bs)]))
 
 ;; encode-ia5string : String -> Bytes
 (define (encode-ia5string s)
@@ -630,21 +626,21 @@
 
 ;; decode-boolean : Bytes -> Boolean
 (define (decode-boolean b)
-  (cond [(equal? b #"\1") #t]
+  (cond [(equal? b #"\377") #t]
         [(equal? b #"\0") #f]
         [else (decode-bad 'BOOLEAN b)]))
 
-;; decode-bit-string : bytes -> bytes
-;; Given encoded content, returns raw bit string
-;; FIXME: trailing-unused bits must be zero!
+;; decode-bit-string : Bytes -> Bit-String
 (define (decode-bit-string c)
   (when (zero? (bytes-length c))
     (decode-bad 'BIT-STRING c))
   (let ([trailing-unused (bytes-ref c 0)])
-    (unless (zero? trailing-unused)
-      ;; FIXME: support ... but with what representation?
-      (error 'DER-decode-value "BIT STRING with partial octets not supported"))
-    (subbytes c 1 (bytes-length c))))
+    (unless (<= 0 trailing-unused 7)
+      (decode-bad 'BIT-STRING c
+                  #:msg "invalid unused bit count"
+                  #:more "\n  unused bits: ~s" trailing-unused))
+    (bit-string (subbytes c 1 (bytes-length c))
+                trailing-unused)))
 
 ;; decode-ia5string : Bytes -> String
 (define (decode-ia5string bs)
@@ -653,12 +649,12 @@
     (decode-bad 'IA5string bs))
   s)
 
-;; decode-integer : bytes -> integer
+;; decode-integer : Bytes -> Integer
 ;; Given encoded integer, returns raw integer
 (define (decode-integer bs)
   (base256->signed bs))
 
-;; decode-null : bytes -> #f
+;; decode-null : Bytes -> #f
 (define (decode-null bs)
   (unless (equal? bs #"")
     (decode-bad 'NULL bs))

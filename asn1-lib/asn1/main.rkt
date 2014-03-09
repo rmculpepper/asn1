@@ -59,6 +59,9 @@
          ia5string?
 
          (contract-out
+          ;; private/base-types.rkt
+          [struct bit-string ([bytes bytes?] [unused (integer-in 0 7)])]
+
           ;; private/der.rkt
           [DER-encode-hooks
            (parameter/c

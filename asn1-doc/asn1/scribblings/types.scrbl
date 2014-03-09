@@ -39,9 +39,16 @@ Type of arbitrary-precision, signed integers. Corresponds to Racket's
 
 @defthing[BIT-STRING asn1-type?]{
 
-Type of bit strings, including those that end in a partial octet.
+Type of bit strings, including those that end in a partial
+octet. Represented by the @racket[bit-string] struct.
+}
 
-@;{FIXME: support partial-octet bit strings ...}
+@defstruct*[bit-string ([bytes bytes?] [unused (integer-in 0 7)])]{
+
+Represents a bit string. The first bit in the bit string is the high
+bit of the first octet of @racket[_bytes]. The lowest @racket[_unused]
+bits of the last octet of @racket[_bytes] are not considered part of
+the bit string; they should be set to 0.
 }
 
 @defthing[OCTET-STRING asn1-type?]{
