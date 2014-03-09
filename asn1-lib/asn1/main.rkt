@@ -24,12 +24,21 @@
          "private/der-frame.rkt"
          "private/base256.rkt")
 (provide Sequence
-         SequenceOf
          Set
-         SetOf
          Choice
          Tag
-         Wrap
+         (contract-out
+          [SequenceOf
+           (-> asn1-type? asn1-type?)]
+          [SetOf
+           (-> asn1-type? asn1-type?)]
+          [Wrap
+           (->* [asn1-type?]
+                [#:pre-encode (-> any/c any/c)
+                 #:encode (-> any/c bytes?)
+                 #:decode (-> bytes? any/c)
+                 #:post-decode (-> any/c any/c)]
+                asn1-type?)])
 
          ;; private/types.rkt
          asn1-type?
@@ -114,22 +123,10 @@
    [(Sequence e:element ...)
     #'(asn1-type:sequence (check-sequence-types (list e.et ...)))]))
 
-(define-syntax SequenceOf
-  (syntax-parser
-   [(SequenceOf type)
-    #:declare type (expr/c #'asn1-type?)
-    #'(asn1-type:sequence-of type.c)]))
-
 (define-syntax Set
   (syntax-parser
    [(Set e:element ...)
     #'(asn1-type:set (check-set-types (list e.et ...)))]))
-
-(define-syntax SetOf
-  (syntax-parser
-   [(SetOf type)
-    #:declare type (expr/c #'asn1-type?)
-    #'(asn1-type:set-of type.c)]))
 
 (define-syntax Choice
   (syntax-parser
@@ -145,25 +142,18 @@
     #:declare type (expr/c #'asn1-type?)
     #'(make-tag-type '(tclass itag) type.c)]))
 
-(define-syntax Wrap
-  (syntax-parser
-   [(Wrap type
-          (~or
-           (~optional (~seq #:pre-encode pre-encode-f)
-                      #:defaults ([pre-encode-f.c #''#f]))
-           (~optional (~seq #:encode encode-f)
-                      #:defaults ([encode-f.c #''#f]))
-           (~optional (~seq #:decode decode-f)
-                      #:defaults ([decode-f.c #''#f]))
-           (~optional (~seq #:post-decode post-decode-f)
-                      #:defaults ([post-decode-f.c #''#f])))
-          ...)
-    #:declare type (expr/c #'asn1-type?)
-    #:declare pre-encode-f (expr/c #'(or/c (-> any/c any/c) #f))
-    #:declare encode-f (expr/c #'(or/c (-> any/c bytes?) #f))
-    #:declare decode-f (expr/c #'(or/c (-> bytes? any/c) #f))
-    #:declare post-decode-f (expr/c #'(or/c (-> any/c any/c) #f))
-    #'(asn1-type:wrap type pre-encode-f.c encode-f.c decode-f.c post-decode-f.c)]))
+(define (SequenceOf type)
+  (asn1-type:sequence-of type))
+
+(define (SetOf type)
+  (asn1-type:set-of type))
+
+(define (Wrap type
+              #:pre-encode [pre-encode-f #f]
+              #:encode [encode-f #f]
+              #:decode [decode-f #f]
+              #:post-decode [post-decode-f #f])
+  (asn1-type:wrap type pre-encode-f encode-f decode-f post-decode-f))
 
 ;; ============================================================
 
