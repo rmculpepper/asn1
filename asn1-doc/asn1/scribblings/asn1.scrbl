@@ -34,3 +34,20 @@ details.
 @include-section["intro.scrbl"]
 @include-section["types.scrbl"]
 @include-section["der.scrbl"]
+
+@bibliography[
+
+@bib-entry[#:key "Dubuisson2001"
+           #:title "ASN.1: Communication Between Heterogeneous Systems"
+           #:is-book? #t
+           #:author "Olivier Dubuisson"
+           #:date "2001"]
+
+@bib-entry[#:key "Kaliski1993"
+           #:title "A Layman's Guide to a Subset of ASN.1, BER, and DER"
+           #:author "Burton S. Kaliski Jr."
+           #:location "RSA Laboratories Technical Note"
+           #:date "November 1, 1993"
+           #:url "http://luca.ntop.org/Teaching/Appunti/asn1.html"]
+
+]

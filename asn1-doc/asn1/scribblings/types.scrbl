@@ -224,6 +224,17 @@ generate a type distinct from @racket[type] for the purpose of
 targeting encoding or decoding hooks.
 }
 
+@defform[(Delay type)
+         #:contracts ([type asn1-type?])]{
+
+Produces a type that acts like @racket[type], but delays the
+evaluation of @racket[type] until it is needed for encoding or
+decoding, or to check the well-formedness of another type.
+
+Use @racket[Delay] to write recursive types or types with forward
+references.
+}
+
 @defproc[(SequenceOf [component-type asn1-type?])
          asn1-type?]{
 
