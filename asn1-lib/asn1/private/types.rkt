@@ -48,7 +48,7 @@
 (struct asn1-type:tag asn1-type (tag type) #:transparent)
 (struct asn1-type:defined asn1-type (name promise) #:transparent)
 (struct asn1-type:explicit-tag asn1-type (type) #:transparent)
-(struct asn1-type:wrap (type pre-encode encode decode post-decode) #:transparent)
+(struct asn1-type:wrap asn1-type (type pre-encode encode decode post-decode) #:transparent)
 
 ;; Asn1-Element-Type is one of
 ;; - (element Symbol MaybeTag Asn1-Type MaybeOptionalDefault)

@@ -29,6 +29,7 @@
          SetOf
          Choice
          Tag
+         Wrap
 
          ;; private/types.rkt
          asn1-type?
@@ -143,6 +144,26 @@
    [(Tag :tag-class #:implicit itag:nat type)
     #:declare type (expr/c #'asn1-type?)
     #'(make-tag-type '(tclass itag) type.c)]))
+
+(define-syntax Wrap
+  (syntax-parser
+   [(Wrap type
+          (~or
+           (~optional (~seq #:pre-encode pre-encode-f)
+                      #:defaults ([pre-encode-f.c #''#f]))
+           (~optional (~seq #:encode encode-f)
+                      #:defaults ([encode-f.c #''#f]))
+           (~optional (~seq #:decode decode-f)
+                      #:defaults ([decode-f.c #''#f]))
+           (~optional (~seq #:post-decode post-decode-f)
+                      #:defaults ([post-decode-f.c #''#f])))
+          ...)
+    #:declare type (expr/c #'asn1-type?)
+    #:declare pre-encode-f (expr/c #'(or/c (-> any/c any/c) #f))
+    #:declare encode-f (expr/c #'(or/c (-> any/c bytes?) #f))
+    #:declare decode-f (expr/c #'(or/c (-> bytes? any/c) #f))
+    #:declare post-decode-f (expr/c #'(or/c (-> any/c any/c) #f))
+    #'(asn1-type:wrap type pre-encode-f.c encode-f.c decode-f.c post-decode-f.c)]))
 
 ;; ============================================================
 

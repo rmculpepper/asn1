@@ -11,7 +11,7 @@
 (define RSAPublicKey (Sequence [modulus INTEGER] [publicExponent INTEGER]))
 
 ;; ---
-
+#|
 (define ECDomainParameters
   (Choice [ecParameters ECParameters]
           [namedCurve OBJECT-IDENTIFIER]
@@ -39,6 +39,7 @@
 (define FieldElement OCTET-STRING)
 
 (define ECPoint OCTET-STRING)
+|#
 
 #|
 (DER-decode-hooks
@@ -47,4 +48,10 @@
 
 ;; ----
 
-(define T61String (Tag #:universal #:implicit 20 OCTET-STRING))
+;; (define T61String (Tag #:universal #:implicit 20 OCTET-STRING))
+
+(define T61String
+  (Tag #:universal #:implicit 20
+       (Wrap OCTET-STRING
+             #:encode string->bytes/latin-1
+             #:decode bytes->string/latin-1)))
