@@ -103,28 +103,41 @@ of the corresponding types. (Hooks cannot influence the handling of
 tag or length components---except in the special case of @racket[ANY]
 type; see below.)
 
+The hook parameters use @racket[eq?] for type comparison. Use
+@racket[(Wrap _type)] to generate a type equivalent to @racket[_type]
+but distinct for the purpose of targeting hooks.
+
 @defparam[DER-encode-hooks hooks
-          (listof (list/c asn1-type? 'pre (-> any/c bytes?)))]{
+          (listof
+           (or/c
+            (list/c asn1-type? 'pre (-> any/c any/c))
+            (list/c asn1-type? 'encode (-> any/c bytes?))))]{
 
-Parameter of hooks for controlling encoding. The hook
+Parameter of hooks for controlling encoding. There are two kinds of
+hooks, distinguished by whether they are run before or instead of the
+built-in decoding rules:
 
-@racketblock[(list _type 'pre _encoder)]
+@itemlist[
 
-is interpreted as follows: When encoding a Racket value @racket[_v] as
-ASN.1 type @racket[type], use the result of @racket[(_encoder _v)]
-instead of the built-in encoding rules for that type.
+@item{@racket[(list _type 'pre _pre-encoder)] --- When encoding a
+Racket value @racket[_v] as ASN.1 type @racket[_type], pass the result
+of @racket[(_pre-encoder _v)] to the built-in encoder (or to the next
+encoder hook) instead of @racket[_v].}
 
-Encoding hooks can be used for efficiency. For example, suppose that
-you already have a large integer in the appropriate octet-string form
-(perhaps from another library or from reading a serialized
-version). Instead of converting it to a bignum to pass to
-@racket[DER-encode], you can add a hook to accept the value directly
-as a bytestring:
+@item{@racket[(list _type 'encode _encoder)] --- When encoding a
+Racket value @racket[_v] as ASN.1 type @racket[_type], use the
+bytestring result of @racket[(_encoder _v)] as the value component
+instead of calling the built-in encoder rules.}
+
+]
+
+Encoding hooks can be used for efficiency. Here's an alternative to
+the example discussed in the @racket[Wrap] form documentation:
 
 @interaction[#:eval the-eval
 (define sig
   (parameterize ((DER-encode-hooks
-                  (list (list INTEGER 'pre (lambda (b) b)))))
+                  (list (list INTEGER 'encode (lambda (b) b)))))
     (DER-encode (Sequence [r INTEGER] [s INTEGER])
                 '(sequence [r #"}nSi|-uy"]
                            [s #"y\21~P#3\37\b"]))))
@@ -132,30 +145,13 @@ sig
 (DER-decode (Sequence [r INTEGER] [s INTEGER]) sig)
 ]
 
-Beware, no checking is done on the value! In the example above, the
-programmer must be sure that the bytestring is an encoding of the
-integer as a @emph{big-endian, signed, two's complement base-256
-integer repesented using the minimum number of octets}. (A
-@hyperlink["https://www.cs.auckland.ac.nz/~pgut001/pubs/x509guide.txt"]{bug
-in some X.509 certificate software} was to encode certain numbers
-using an @emph{unsigned} encoding.)
-
-Encoding hooks can also be used to add in support for base types not
-otherwise supported by this library. For example, the ASN.1 type
-T61String could be defined and used as follows:
-
-@interaction[#:eval the-eval
-(define T61String (Tag #:universal #:implicit 20 OCTET-STRING))
-(parameterize ((DER-encode-hooks
-                (list (list T61String 'pre string->bytes/latin-1))))
-  (DER-encode T61String "looks like ASCII to me"))
-]
+As with @racket[Wrap], no checking is done on the returned bytestring.
 }
 
 @defparam[DER-decode-hooks hooks
           (listof
            (or/c
-            (list/c asn1-type? 'pre (-> bytes? any/c))
+            (list/c asn1-type? 'decode (-> bytes? any/c))
             (list/c asn1-type? 'post (-> any/c any/c))))]{
 
 Parameter of hooks for controlling decoding. There are two kinds of
@@ -164,22 +160,18 @@ built-in decoding rules:
 
 @itemlist[
 
-@item{@racket[(list _type 'pre _decoder)] ---
+@item{@racket[(list _type 'decode _decoder)] ---
 When decoding a bytestring @racket[_b] (the value component of a DER
 encoding) as ASN.1 type @racket[_type], use the result of
 @racket[(_decoder _b)] instead of the built-in decoding rules
 for that type.}
 
-@item{@racket[(list _type 'post _decoder)] ---
-is interpreted as follows: After decoding a bytestring as ASN.1 type
-@racket[_type] to a Racket value @racket[_v] using the built-in decoding
-rules, evaluate @racket[(_decoder _v)] and return the result as
-the decoded value.}
+@item{@racket[(list _type 'post _post-decoder)] --- is interpreted as
+follows: After decoding a bytestring as ASN.1 type @racket[_type] to a
+Racket value @racket[_v] using the built-in decoding rules (or a
+decoder hook), evaluate @racket[(_post-decoder _v)] and return the
+result as the decoded value.}
 ]
-
-If @racket[(DER-decode-hooks)] contains both a @racket['pre] hook and
-a @racket['post] hook for a given type, only the @racket['pre] hook is
-used.
 }
 
 @(close-eval the-eval)

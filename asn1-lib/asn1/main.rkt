@@ -62,10 +62,14 @@
           ;; private/der.rkt
           [DER-encode-hooks
            (parameter/c
-            (listof (list/c asn1-type? 'pre (-> any/c bytes?))))]
+            (listof (cons/c asn1-type?
+                            (or/c (list/c 'pre (-> any/c any/c))
+                                  (list/c 'encode (-> any/c bytes?))))))]
           [DER-decode-hooks
            (parameter/c
-            (listof (list/c asn1-type? (or/c 'pre 'post) (-> any/c any/c))))]
+            (listof (cons/c asn1-type?
+                            (or/c (list/c 'decode (-> bytes? any/c))
+                                  (list/c 'post (-> any/c any/c))))))]
           [DER-encode
            (-> asn1-type? any/c bytes?)]
           [DER-encode-value

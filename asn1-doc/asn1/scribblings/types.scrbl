@@ -126,10 +126,11 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
 Corresponds to the ASN.1 SEQUENCE type form.
 }
 
-@defform[(SequenceOf component-type)
+@defform[(Set component ...)
+         #:grammar ([component [name-id maybe-tag component-type maybe-option]])
          #:contracts ([component-type asn1-type?])]{
 
-Corresponds to the ASN.1 SEQUENCE OF type form.
+Corresponds the ASN.1 SET type form.
 }
 
 @defform[(Choice alternative ...)
@@ -147,21 +148,89 @@ Corresonds to the ASN.1 CHOICE type form.
 Corresponds to an ASN.1 alternatively tagged type.
 }
 
-@defform[(Set component ...)
-         #:grammar ([component [name-id maybe-tag component-type maybe-option]])
-         #:contracts ([component-type asn1-type?])]{
+@defproc[(Wrap [type asn1-type?]
+               [#:pre-encode pre-encode (or/c (-> any/c any/c) #f) #f]
+               [#:encode encode (or/c (-> any/c bytes?) #f) #f]
+               [#:decode decode (or/c (-> bytes? any/c) #f) #f]
+               [#:post-decode post-decode (or/c (-> any/c any/c) #f) #f])
+         asn1-type?]{
 
-Corresponds the ASN.1 SET type form.
+Produces a type @racket[_wrapped-type] that acts like @racket[type],
+but whose encoding is affected by the additional parameters as
+follows:
+
+If @racket[pre-encode] is a function, then when encoding @racket[_v]
+as @racket[_wrapped-type], evaluate @racket[(pre-encode _v)] and pass
+that to the built-in encoding rules (or the next encoder hook) instead
+of @racket[_v].
+
+If @racket[encode] is a function, then when encoding @racket[_v] as
+@racket[_wrapped-type], evaluate @racket[(encode _v)] and use that as
+the value component of the TLV triple instead of calling the built-in
+encoding rules.
+
+If @racket[decode] is a function, then when decoding the value
+component bytestring @racket[_b] as @racket[_wrapped-type], evaluate
+@racket[(decode _b)] and use that as the decoded value instead of
+calling the built-in decoding rules.
+
+If @racket[post-decode] is a function, then when decoding a bytestring
+as @racket[_wrapped-type], first call the built-in decoding rules (or
+the next decoder hook) to get a Racket value @racket[_v], then
+evaluate @racket[(post-decode _v)] and return the result as the
+decoded value.
+
+One use of wrapped types with encoding rules is for efficiency. For
+example, suppose that you already have a large integer in the
+appropriate octet-string form (perhaps from another library or from
+reading a serialized version). Instead of converting it to a bignum to
+pass to @racket[DER-encode], you can add use a wrapped type to accept
+the value directly as a bytestring:
+
+@interaction[#:eval the-eval
+(define MyInteger
+  (Wrap INTEGER #:encode (lambda (b) b)))
+(define sig
+  (DER-encode (Sequence [r MyInteger] [s MyInteger])
+              '(sequence [r #"}nSi|-uy"]
+                         [s #"y\21~P#3\37\b"])))
+sig
+(DER-decode (Sequence [r INTEGER] [s INTEGER]) sig)
+]
+
+Beware, no checking is done on the bytestring! In the example above,
+the programmer must be sure that the bytestring is an encoding of the
+integer as a @emph{big-endian, signed, two's complement base-256
+integer repesented using the minimum number of octets}. (A
+@hyperlink["https://www.cs.auckland.ac.nz/~pgut001/pubs/x509guide.txt"]{bug
+in some X.509 certificate software} was to encode certain numbers
+using an @emph{unsigned} encoding.)
+
+Encoding hooks can also be used to add in support for base types not
+otherwise supported by this library. See
+@secref["handling-unsupported"] for details.
+
+One disadvantage to @racket[Wrap] is that it mixes encoding concerns
+into the type structure. See @secref["der-hooks"] for an
+alternative. The expression @racket[(Wrap type)] can be used to
+generate a type distinct from @racket[type] for the purpose of
+targeting encoding or decoding hooks.
 }
 
-@defform[(SetOf component-type)
-         #:contracts ([component-type asn1-type?])]{
+@defproc[(SequenceOf [component-type asn1-type?])
+         asn1-type?]{
+
+Corresponds to the ASN.1 SEQUENCE OF type form.
+}
+
+@defproc[(SetOf [component-type asn1-type?])
+         asn1-type?]{
 
 Corresponds the the ASN.1 SET OF type form.
 }
 
 
-@section{Handling Unsupported Types}
+@section[#:tag "handling-unsupported"]{Handling Unsupported Types}
 
 ASN.1 defines many additional base types that are unsupported by this
 library. An example is T61String, which has escape codes for changing
@@ -169,8 +238,7 @@ the interpretation of following characters. It is infeasible for this
 library to handle the validation and interpretation of T61String, so
 it does not define the type at all. However, an application may define
 the type (or an approximation, if full validation and interpretation
-are not needed) using @racket[Tag] or @racket[Choice] with a universal
-implicit tag.
+are not needed) using @racket[Tag] with a universal implicit tag.
 
 Here is a basic definition of @racket[T61String] using @racket[Tag]:
 
@@ -184,18 +252,22 @@ Here is a basic definition of @racket[T61String] using @racket[Tag]:
 When encoding a @racket[T61String], the same Racket values are
 accepted as for @racket[OCTET-STRING]---that is, bytestrings
 (@racket[bytes?])---and the same validation is performed---that is,
-none. Likewise when decoding. Additional validation and interpretation
-can be attached to the type via @secref["der-hooks"].
+none. Likewise when decoding. 
 
-An alternative is a @racket[Choice] type with a single variant. The
-effect is the same except for the symbolic label on the Racket values.
+To change the way T61Strings are encoded and decoded, use
+@racket[Wrap] to add encoding and decoding rules (or see
+@secref["der-hooks"] for an alternative). Let us pretend for a moment
+that T61Strings are just Latin-1 strings. Then we could define
+T61String with automatic conversion to and from Racket strings as
+follows:
 
 @interaction[#:eval the-eval
-(define T61String*
-  (Choice [t61string #:universal #:implicit 20 OCTET-STRING]))
-(DER-encode T61String* '(t61string #"abc"))
-(DER-decode T61String* (DER-encode T61String* '(t61string #"abc")))
+(define T61String
+  (Wrap (Tag #:universal #:implicit 20 OCTET-STRING)
+        #:pre-encode string->bytes/latin-1
+        #:post-decode bytes->string/latin-1))
+(DER-encode T61String "pretend T61 is Latin-1")
+(DER-decode T61String (DER-encode T61String "pretend T61 is Latin-1"))
 ]
-
 
 @(close-eval the-eval)

@@ -29,14 +29,15 @@
 ;; Encode/Decode hooks
 
 ;; DER-encode-hooks : (parameterof (listof (cons Asn1-Type DER-Encode-Hook)))
-;; A DER-Encode-Hook is (list 'pre (Asn1-Type Any -> Bytes)), provides value bytes
+;; A DER-Encode-Hook is one of
+;; - (list 'pre    (Asn1-Type Any -> Any))     -- value-to-value filter
+;; - (list 'encode (Asn1-Type Any -> Bytes))   -- provides value bytes
 (define DER-encode-hooks (make-parameter null))
 
 ;; DER-decode-hooks : (parameterof (listof (cons Asn1-Type DER-Decode-Hook)))
 ;; A DER-Decode-Hook is one of
-;; - (list 'pre  (Asn1-Type Bytes -> Any))
-;; - (list 'post (Asn1-Type Any   -> Any))
-;; Note: a pre-hook prevents a post-hook from running.
+;; - (list 'decode (Asn1-Type Bytes -> Any))   -- decodes value bytes
+;; - (list 'post   (Asn1-Type Any   -> Any))   -- value-to-value filter
 (define DER-decode-hooks (make-parameter null))
 
 ;; search-hooks : Symbol (listof Key) (listof (list Key Symbol Value))
@@ -57,14 +58,6 @@
 
 ;; ============================================================
 
-;; encode hooks:
-;;  'pre : any -> any
-;;  'encode : any -> bytes
-
-;; decode hooks:
-;;  'decode : bytes -> any
-;;  'post : any -> any
-
 ;; DER-encode : T V[T] -> E[T]
 ;; - bytes/integer/etc    Base-Type                          -> E[_]
 ;; - (SequenceOf T)       (list V[T] ...)                    -> E[_]
@@ -83,7 +76,7 @@
   (let loop ([type type] [v-in v] [alt-tag alt-tag] [encode-hook-f-in #f])
     ;; Run pre-hooks until we find an encode-hook
     (define pre-hook-f
-      (and (not encode-hook-f)
+      (and (not encode-hook-f-in)
            (let ([pre-hook (get-hook 'pre type hooks)])
              (and pre-hook (caddr pre-hook)))))
     (define v (if pre-hook-f (pre-hook-f v-in) v-in))
@@ -405,7 +398,9 @@
           (DER-decode-value type c)))
 
     (define post-hook-f
-      (let ([post-hook (get-hook 'post type hooks)])
+      (let ([post-hook
+             (and (not decode-hook-f-in)
+                  (get-hook 'post type hooks))])
         (if post-hook (caddr post-hook) values)))
 
     (post-hook-f
