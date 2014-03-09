@@ -81,13 +81,6 @@
 
 ;; ============================================================
 
-(define-syntax define-asn1-type
-  (syntax-parser
-   [(define-asn1-type name:id type)
-    #:declare type (expr/c #'asn1-type?)
-    #'(define name
-        (asn1-type:defined 'name (delay type.c)))]))
-
 (begin-for-syntax
  (define-splicing-syntax-class tag-class
    (pattern (~seq #:universal) #:with tclass #'universal)

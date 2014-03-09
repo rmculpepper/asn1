@@ -86,11 +86,11 @@
       (and (not encode-hook-f)
            (let ([pre-hook (get-hook 'pre type hooks)])
              (and pre-hook (caddr pre-hook)))))
+    (define v (if pre-hook-f (pre-hook-f v-in) v-in))
     (define encode-hook-f
       (or encode-hook-f-in
           (let ([encode-hook (get-hook 'encode type hooks)])
             (and encode-hook (caddr encode-hook)))))
-    (define v (if pre-hook (let ([pre-hook-f (caddr pre-hook)]) (pre-hook-f v-in)) v-in))
     (define (encode-value)
       (if encode-hook-f
           (encode-hook-f v)
@@ -123,8 +123,6 @@
        (loop type* v (or alt-tag tag*) encode-hook-f)]
       [(asn1-type:explicit-tag _)
        (wrap 'SEQUENCE (encode-value) alt-tag)]
-      [(asn1-type:defined name promise)
-       (loop (force promise) v alt-tag encode-hook-f)]
       [(asn1-type:wrap w-type w-pre-encode w-encode _ _)
        (let ([v (if w-pre-encode (w-pre-encode v) v)])
          (loop w-type v alt-tag (or encode-hook-f w-encode)))])))
@@ -160,8 +158,6 @@
     [(asn1-type:tag _ _)
      (error 'DER-encode-value "bad type\n  type: ~e" type)]
     [(asn1-type:choice _)
-     (error 'DER-encode-value "bad type\n  type: ~e" type)]
-    [(asn1-type:defined _ _)
      (error 'DER-encode-value "bad type\n  type: ~e" type)]
     [(asn1-type:wrap _ _ _ _ _)
      (error 'DER-encode-value "bad type\n  type: ~e" type)]))
@@ -376,8 +372,9 @@
   (DER-decode-frame type (bytes->DER-frame b)))
 
 (define (DER-decode-frame type frame)
+  (define hooks (DER-decode-hooks))
   (match-define (DER-frame tagclass p/c tagn c) frame)
-  (let loop ([type type] [alt-types null] [check-whole-tag? #t])
+  (let loop ([type type] [decode-hook-f-in #f] [check-whole-tag? #t])
     ;; check-type : Base-Type -> Void
     (define (check-type base-type)
       (define te (type->tag-entry base-type))
@@ -393,51 +390,66 @@
         (error 'DER-decode "primitive vs constructed mismatch\n  expected: ~s\n  decoded: ~s"
                (tag-entry-p/c te) p/c)))
 
-    (define (decode-value)
-      (DER-decode-value type c alt-types))
+    (define decode-hook-f
+      (or decode-hook-f-in
+          (let ([decode-hook (get-hook 'decode type hooks)])
+            (and decode-hook (caddr decode-hook)))))
 
-    (match type
-      [(asn1-type:any)
-       (DER-decode-value type (DER-frame->bytes frame))]
-      [(asn1-type:base base-type)
-       (check-type base-type)
-       (decode-value)]
-      [(asn1-type:sequence _)
-       (check-type 'SEQUENCE)
-       (decode-value)]
-      [(asn1-type:sequence-of _)
-       (check-type 'SEQUENCE)
-       (decode-value)]
-      [(asn1-type:set _)
-       (check-type 'SET)
-       (decode-value)]
-      [(asn1-type:set-of type*)
-       (check-type 'SET)
-       (decode-value)]
-      [(asn1-type:choice elts)
-       (let choice-loop ([elts elts])
-         (match elts
-           [(cons (and elt0 (element-type et-name _ et-type _)) rest-elts)
-            (if (tag-matches elt0 frame)
-                (list et-name (loop et-type (cons type alt-types) #f))
-                (choice-loop rest-elts))]
-           [_ (error 'DER-decode "tag does not match any alternative in Choice")]))]
-      [(asn1-type:tag tag type*)
-       (unless (equal? tagclass (car tag))
-         (error 'DER-decode "tag class mismatch\n  expected: ~s\n  decoded: ~s"
-                (car tag) tagclass))
-       (unless (equal? tagn (cadr tag))
-         (error 'DER-decode "tag number mismatch\n  expected: ~s\n  decoded: ~s"
-                (cadr tag) tagn))
-       (loop type* (cons type alt-types) #f)]
-      [(asn1-type:explicit-tag type*)
-       ;; Tag has already been checked by enclosing CHOICE, SEQUENCE, or SET
-       (unless (equal? p/c 'constructed)
-         (error 'DER-decode "primitive vs constructed mismatch\n  expected: ~s\n  decoded: ~s"
-                'constructed p/c))
-       (decode-value)]
-      [(asn1-type:defined name promise)
-       (loop (force promise) (cons type alt-types) check-whole-tag?)])))
+    (define (decode-value)
+      (if decode-hook-f
+          (decode-hook-f c)
+          (DER-decode-value type c)))
+
+    (define post-hook-f
+      (let ([post-hook (get-hook 'post type hooks)])
+        (if post-hook (caddr post-hook) values)))
+
+    (post-hook-f
+     (match type
+       [(asn1-type:any)
+        (if decode-hook-f
+            (decode-hook-f (DER-frame->bytes frame))
+            (DER-decode-value type (DER-frame->bytes frame)))]
+       [(asn1-type:base base-type)
+        (check-type base-type)
+        (decode-value)]
+       [(asn1-type:sequence _)
+        (check-type 'SEQUENCE)
+        (decode-value)]
+       [(asn1-type:sequence-of _)
+        (check-type 'SEQUENCE)
+        (decode-value)]
+       [(asn1-type:set _)
+        (check-type 'SET)
+        (decode-value)]
+       [(asn1-type:set-of type*)
+        (check-type 'SET)
+        (decode-value)]
+       [(asn1-type:choice elts)
+        (let choice-loop ([elts elts])
+          (match elts
+            [(cons (and elt0 (element-type et-name _ et-type _)) rest-elts)
+             (if (tag-matches elt0 frame)
+                 (list et-name (loop et-type decode-hook-f #f))
+                 (choice-loop rest-elts))]
+            [_ (error 'DER-decode "tag does not match any alternative in Choice")]))]
+       [(asn1-type:tag tag type*)
+        (unless (equal? tagclass (car tag))
+          (error 'DER-decode "tag class mismatch\n  expected: ~s\n  decoded: ~s"
+                 (car tag) tagclass))
+        (unless (equal? tagn (cadr tag))
+          (error 'DER-decode "tag number mismatch\n  expected: ~s\n  decoded: ~s"
+                 (cadr tag) tagn))
+        (loop type* decode-hook-f #f)]
+       [(asn1-type:explicit-tag type*)
+        ;; Tag has already been checked by enclosing CHOICE, SEQUENCE, or SET
+        (unless (equal? p/c 'constructed)
+          (error 'DER-decode "primitive vs constructed mismatch\n  expected: ~s\n  decoded: ~s"
+                 'constructed p/c))
+        (decode-value)]
+       [(asn1-type:wrap w-type _ _ w-decode w-post-decode)
+        ((or w-post-decode values)
+         (loop w-type (or decode-hook-f w-decode) check-whole-tag?))]))))
 
 ;; tag-matches : Element-Type DER-Frame -> Boolean
 ;; Checks class and tag number for match; FIXME: check p/c
@@ -453,24 +465,7 @@
 
 ;; DER-decode-value : Asn1-Type Bytes -> Any
 ;; Note: if type is ANY, c is whole TLV triple; otherwise, just value part.
-(define (DER-decode-value type c [alt-types null])
-  (define hooks (DER-decode-hooks))
-  (define pre-hook
-    (or (search-hooks 'pre alt-types hooks)
-        (get-hook 'pre type hooks)))
-  (if pre-hook
-      (let ([pre-hook-f (caddr pre-hook)])
-        (pre-hook-f c))
-      (let* ([post-hook
-              (or (search-hooks 'post alt-types hooks)
-                  (get-hook 'post type hooks))]
-             [v (DER-decode-value* type c)])
-        (if post-hook
-            (let ([post-hook-f (caddr post-hook)])
-              (post-hook-f v))
-            v))))
-
-(define (DER-decode-value* type c)
+(define (DER-decode-value type c)
   (match type
     [(asn1-type:any)
      (match-define (DER-frame tagclass p/c tagn content) (bytes->DER-frame c))
@@ -518,8 +513,6 @@
     [(asn1-type:tag _ _)
      (error 'DER-decode-value "bad type\n  type: ~e" type)]
     [(asn1-type:choice elts)
-     (error 'DER-decode-value "bad type\n  type: ~e" type)]
-    [(asn1-type:defined name promise)
      (error 'DER-decode-value "bad type\n  type: ~e" type)]))
 
 (define (DER-decode-base* base-type c)
