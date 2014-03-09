@@ -34,8 +34,9 @@
 ;; - (asn1-type:set-of Asn1-Type)
 ;; - (asn1-type:choice (list Asn1-Element-Type ...))
 ;; - (asn1-type:tag Tag Asn1-Type)
-;; - (asn1-type:ref symbol Asn1-Type)
+;; - (asn1-type:defined symbol (promiseof Asn1-Type))
 ;; - (asn1-type:explicit-tag Asn1-Type)
+;; - (asn1-type:wrap (Asn1-Type procedure/#f * 4))
 (struct asn1-type () #:transparent)
 (struct asn1-type:any asn1-type () #:transparent)
 (struct asn1-type:base asn1-type (name) #:transparent)
@@ -47,6 +48,7 @@
 (struct asn1-type:tag asn1-type (tag type) #:transparent)
 (struct asn1-type:defined asn1-type (name promise) #:transparent)
 (struct asn1-type:explicit-tag asn1-type (type) #:transparent)
+(struct asn1-type:wrap (type pre-encode encode decode post-decode) #:transparent)
 
 ;; Asn1-Element-Type is one of
 ;; - (element Symbol MaybeTag Asn1-Type MaybeOptionalDefault)

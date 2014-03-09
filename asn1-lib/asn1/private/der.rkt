@@ -75,6 +75,10 @@
 ;; - (Choice [L T] ...)   (list L V[T])                      -> E[_]
 
 (define (DER-encode type v [alt-tag #f])
+  ;; Want to let encode-hook control value encoding, but don't want
+  ;; hooks to worry about tag and length.  So, need to search forward
+  ;; completely to get base type for tag, but remember when we see an
+  ;; encode-hook, and use that instead for encoding.
   (define hooks (DER-encode-hooks))
   (let loop ([type type] [v-in v] [alt-tag alt-tag] [encode-hook-f-in #f])
     ;; Run pre-hooks until we find an encode-hook
@@ -120,7 +124,10 @@
       [(asn1-type:explicit-tag _)
        (wrap 'SEQUENCE (encode-value) alt-tag)]
       [(asn1-type:defined name promise)
-       (loop (force promise) v alt-tag encode-hook-f)])))
+       (loop (force promise) v alt-tag encode-hook-f)]
+      [(asn1-type:wrap w-type w-pre-encode w-encode _ _)
+       (let ([v (if w-pre-encode (w-pre-encode v) v)])
+         (loop w-type v alt-tag (or encode-hook-f w-encode)))])))
 
 (define (DER-encode-value type v)
   (match type
@@ -155,6 +162,8 @@
     [(asn1-type:choice _)
      (error 'DER-encode-value "bad type\n  type: ~e" type)]
     [(asn1-type:defined _ _)
+     (error 'DER-encode-value "bad type\n  type: ~e" type)]
+    [(asn1-type:wrap _ _ _ _ _)
      (error 'DER-encode-value "bad type\n  type: ~e" type)]))
 
 (define (DER-encode-base* base-type v)
