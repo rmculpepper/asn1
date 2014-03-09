@@ -34,9 +34,9 @@
 ;; - (asn1-type:set-of Asn1-Type)
 ;; - (asn1-type:choice (list Asn1-Element-Type ...))
 ;; - (asn1-type:tag Tag Asn1-Type)
-;; - (asn1-type:defined symbol (promiseof Asn1-Type))
 ;; - (asn1-type:explicit-tag Asn1-Type)
 ;; - (asn1-type:wrap (Asn1-Type procedure/#f * 4))
+;; - (asn1-type:delay (promiseof Asn1-Type))
 (struct asn1-type () #:transparent)
 (struct asn1-type:any asn1-type () #:transparent)
 (struct asn1-type:base asn1-type (name) #:transparent)
@@ -46,9 +46,9 @@
 (struct asn1-type:set-of asn1-type (elt) #:transparent)
 (struct asn1-type:choice asn1-type (elts) #:transparent)
 (struct asn1-type:tag asn1-type (tag type) #:transparent)
-(struct asn1-type:defined asn1-type (name promise) #:transparent)
 (struct asn1-type:explicit-tag asn1-type (type) #:transparent)
 (struct asn1-type:wrap asn1-type (type pre-encode encode decode post-decode) #:transparent)
+(struct asn1-type:delay asn1-type (promise))
 
 ;; Asn1-Element-Type is one of
 ;; - (element Symbol MaybeTag Asn1-Type MaybeOptionalDefault)
@@ -96,7 +96,7 @@
        (error who "indeterminate tag")]
       [(asn1-type:choice _)
        (error who "indeterminate tag")]
-      [(asn1-type:defined _ promise)
+      [(asn1-type:delay promise)
        (check-can-tag who tag (force promise))]
       [_ (void)])))
 
@@ -141,11 +141,15 @@
      (list (tag-entry-tag (type->tag-entry 'SET)))]
     [(asn1-type:choice elts)
      (apply append (map (type->tags elts)))]
-    [(asn1-type:defined name promise)
-     (type->tags (force promise))]
+    [(asn1-type:tag tag type)
+     (list tag)]
     [(asn1-type:explicit-tag type)
      ;; should always be guarded by element-type w/ tag
      (error 'type->tags "internal error")]
+    [(asn1-type:wrap type _ _ _ _)
+     (type->tags type)]
+    [(asn1-type:delay promise)
+     (type->tags (force promise))]
     [(element-type name tag type option)
      (if tag
          (list tag)

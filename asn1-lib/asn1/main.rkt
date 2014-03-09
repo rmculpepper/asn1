@@ -27,6 +27,7 @@
          Set
          Choice
          Tag
+         Delay
          (contract-out
           [SequenceOf
            (-> asn1-type? asn1-type?)]
@@ -141,6 +142,12 @@
    [(Tag :tag-class #:implicit itag:nat type)
     #:declare type (expr/c #'asn1-type?)
     #'(make-tag-type '(tclass itag) type.c)]))
+
+(define-syntax Delay
+  (syntax-parser
+   [(Delay type)
+    #:declare type (expr/c #'asn1-type?)
+    #'(asn1-type:delay (delay type))]))
 
 (define (SequenceOf type)
   (asn1-type:sequence-of type))

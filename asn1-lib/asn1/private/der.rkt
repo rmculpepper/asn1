@@ -125,7 +125,9 @@
        (wrap 'SEQUENCE (encode-value) alt-tag)]
       [(asn1-type:wrap w-type w-pre-encode w-encode _ _)
        (let ([v (if w-pre-encode (w-pre-encode v) v)])
-         (loop w-type v alt-tag (or encode-hook-f w-encode)))])))
+         (loop w-type v alt-tag (or encode-hook-f w-encode)))]
+      [(asn1-type:delay promise)
+       (loop (force promise) v alt-tag encode-hook-f)])))
 
 (define (DER-encode-value type v)
   (match type
@@ -160,6 +162,8 @@
     [(asn1-type:choice _)
      (error 'DER-encode-value "bad type\n  type: ~e" type)]
     [(asn1-type:wrap _ _ _ _ _)
+     (error 'DER-encode-value "bad type\n  type: ~e" type)]
+    [(asn1-type:delay _)
      (error 'DER-encode-value "bad type\n  type: ~e" type)]))
 
 (define (DER-encode-base* base-type v)
@@ -449,7 +453,9 @@
         (decode-value)]
        [(asn1-type:wrap w-type _ _ w-decode w-post-decode)
         ((or w-post-decode values)
-         (loop w-type (or decode-hook-f w-decode) check-whole-tag?))]))))
+         (loop w-type (or decode-hook-f w-decode) check-whole-tag?))]
+       [(asn1-type:delay promise)
+        (loop (force promise) decode-hook-f check-whole-tag?)]))))
 
 ;; tag-matches : Element-Type DER-Frame -> Boolean
 ;; Checks class and tag number for match; FIXME: check p/c
@@ -513,6 +519,8 @@
     [(asn1-type:tag _ _)
      (error 'DER-decode-value "bad type\n  type: ~e" type)]
     [(asn1-type:choice elts)
+     (error 'DER-decode-value "bad type\n  type: ~e" type)]
+    [(asn1-type:delay _)
      (error 'DER-decode-value "bad type\n  type: ~e" type)]))
 
 (define (DER-decode-base* base-type c)
