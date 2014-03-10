@@ -1,0 +1,14 @@
+
+* docs for Sequence, etc
+* tests!
+* worked example
+
+ASN.1 implementations, might be useful for generating test cases:
+
+ - asn1c 
+   - https://github.com/vlm/asn1c
+   - http://lionet.info/asn1c/compiler.html
+ - http://asn1-playground.oss.com/
+   - interactive website!
+ - ffasn1dump at http://bellard.org/ffasn1/
+   - standalone translator, but not FOSS
