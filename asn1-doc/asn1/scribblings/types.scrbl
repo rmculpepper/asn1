@@ -310,4 +310,59 @@ follows:
 (DER-decode T61String (DER-encode T61String "pretend T61 is Latin-1"))
 ]
 
+
+@section[#:tag "handling-unknown"]{Handling Unknown and Extensible Types}
+
+This library does not directly support the ASN.1 features of
+information classes and objects, EXTERNAL, EMBEDDED PDV, TYPE
+IDENTIFIER, INSTANCE OF, ANY DEFINED BY, etc. Unknown or dynamically
+determined types can be handled by a combination of the simple
+@racket[ANY] type and @racket[Wrap] for adding custom encoding and
+decoding rules.
+
+An INSTANCE OF type can be represented by the following pattern (from
+@cite["Dubuisson2001"], p359):
+
+@racketblock[
+(code:comment "parameterized by type representing the type identifier")
+(define (InstanceOf Type-ID-type)
+  (Tag #:universal #:implicit 8
+       (Sequence [type-id Type-ID-Type]
+                 [value #:explicit 0
+                        (Wrap ANY #:encode values #:decode values)])))
+]
+
+Encoding and decoding hooks that inspect the type id and encode or
+decode the value accordingly can be attached to it using
+@racket[Wrap]. For example, here is an example assuming that the type
+is identified via an OBJECT IDENTIFIER:
+
+@racketblock[
+(code:comment "oid->type : (Listof Integer) -> Asn1-Type")
+(define (oid->type oid) ....)
+
+(define InstOfExample
+  (Wrap (InstanceOf OBJECT-IDENTIFIER)
+        #:pre-encode (lambda (v)
+                       (define type-oid (.... v))
+                       (define value (....  v))
+                       (define encoded-value-tlv
+                         (DER-encode (oid->type type-oid) value))
+                       (code:comment "produce a sequence value for base encoder")
+                       `(sequence (type-id ,type-oid)
+                                  (value ,encoded-value-tlv)))
+        #:post-decode (lambda (v)
+                        (code:comment "v was decoded as a sequence value")
+                        (define type-oid (cadr (assq 'type-id (cdr v))))
+                        (define encoded-value-tlv (cadr (assq 'value (cdr v))))
+                        (define decoded-value
+                          (DER-decode (oid->type type-oid)
+                                      envoded-value-tlv))
+                        (.... type-oid decoded-value))))
+]
+
+The code above relies on the fact that encoders and decoders for
+@racket[ANY] process the entire TLV bytestring rather than just the
+value component.
+
 @(close-eval the-eval)
