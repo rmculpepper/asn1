@@ -112,7 +112,8 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
 @section{Structured Types}
 
 @defform[(Sequence component ...)
-         #:grammar ([component [name-id maybe-tag component-type maybe-option]]
+         #:grammar ([component [name-id maybe-tag component-type maybe-option]
+                               [#:dependent name-id maybe-tag component-type maybe-option]]
                     [maybe-tag (code:line)
                                (code:line maybe-tag-class #:implicit tag-number)
                                (code:line maybe-tag-class #:explicit tag-number)]
@@ -126,6 +127,34 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
          #:contracts ([component-type asn1-type?])]{
 
 Corresponds to the ASN.1 SEQUENCE type form.
+
+Represented by Racket values of the following form:
+
+@racketblock[(list 'sequence (list 'name-id _component-value) ...)]
+
+That is, each @racket[_component-value] is labeled with the same
+symbol as the corresponding @racket[component] of the type.
+
+If a @racket[component] is specified with the @racket[#:dependent]
+keyword, then that @racket[component-type] is not a constant, but is
+instead evaluated with the values of preceding fields in scope each
+time the type is used for encoding or decoding.
+
+@examples[#:eval the-eval
+(define IntOrString
+  (Sequence [type-id INTEGER]
+            [#:dependent value (get-type type-id)]))
+(code:comment "get-type : Integer -> Asn1-Type")
+(define (get-type type-id)
+  (case type-id
+    [(1) INTEGER]
+    [(2) IA5String]
+    [else (error 'get-type "unknown type-id: ~e" type-id)]))
+(DER-encode IntOrString '(sequence [type-id 1] [value 729072]))
+(DER-encode IntOrString '(sequence [type-id 2] [value "hello"]))
+]
+
+See also @secref["handling-info"].
 }
 
 @defform[(Set component ...)
@@ -268,101 +297,5 @@ the value component.
 (DER-decode ANY-as-bytes (DER-encode IA5String "abc"))
 ]
 }
-
-
-@section[#:tag "handling-unsupported"]{Handling Unsupported Types}
-
-ASN.1 defines many additional base types that are unsupported by this
-library. An example is T61String, which has escape codes for changing
-the interpretation of following characters. It is infeasible for this
-library to handle the validation and interpretation of T61String, so
-it does not define the type at all. However, an application may define
-the type (or an approximation, if full validation and interpretation
-are not needed) using @racket[Tag] with a universal implicit tag.
-
-Here is a basic definition of @racket[T61String] using @racket[Tag]:
-
-@interaction[#:eval the-eval
-(define T61String (Tag #:universal #:implicit 20 OCTET-STRING))
-(DER-encode OCTET-STRING #"abc")
-(code:line (DER-encode T61String #"abc") (code:comment "note different tag byte"))
-(DER-decode T61String (DER-encode T61String #"abc"))
-]
-
-When encoding a @racket[T61String], the same Racket values are
-accepted as for @racket[OCTET-STRING]---that is, bytestrings
-(@racket[bytes?])---and the same validation is performed---that is,
-none. Likewise when decoding. 
-
-To change the way T61Strings are encoded and decoded, use
-@racket[Wrap] to add encoding and decoding rules (or see
-@secref["der-hooks"] for an alternative). Let us pretend for a moment
-that T61Strings are just Latin-1 strings. Then we could define
-T61String with automatic conversion to and from Racket strings as
-follows:
-
-@interaction[#:eval the-eval
-(define T61String
-  (Wrap (Tag #:universal #:implicit 20 OCTET-STRING)
-        #:pre-encode string->bytes/latin-1
-        #:post-decode bytes->string/latin-1))
-(DER-encode T61String "pretend T61 is Latin-1")
-(DER-decode T61String (DER-encode T61String "pretend T61 is Latin-1"))
-]
-
-
-@section[#:tag "handling-unknown"]{Handling Unknown and Extensible Types}
-
-This library does not directly support the ASN.1 features of
-information classes and objects, EXTERNAL, EMBEDDED PDV, TYPE
-IDENTIFIER, INSTANCE OF, ANY DEFINED BY, etc. Unknown or dynamically
-determined types can be handled by a combination of the simple
-@racket[ANY] type and @racket[Wrap] for adding custom encoding and
-decoding rules.
-
-An INSTANCE OF type can be represented by the following pattern (from
-@cite["Dubuisson2001"], p359):
-
-@racketblock[
-(code:comment "parameterized by type representing the type identifier")
-(define (InstanceOf Type-ID-type)
-  (Tag #:universal #:implicit 8
-       (Sequence [type-id Type-ID-Type]
-                 [value #:explicit 0
-                        (Wrap ANY #:encode values #:decode values)])))
-]
-
-Encoding and decoding hooks that inspect the type id and encode or
-decode the value accordingly can be attached to it using
-@racket[Wrap]. For example, here is an example assuming that the type
-is identified via an OBJECT IDENTIFIER:
-
-@racketblock[
-(code:comment "oid->type : (Listof Integer) -> Asn1-Type")
-(define (oid->type oid) ....)
-
-(define InstOfExample
-  (Wrap (InstanceOf OBJECT-IDENTIFIER)
-        #:pre-encode (lambda (v)
-                       (define type-oid (.... v))
-                       (define value (....  v))
-                       (define encoded-value-tlv
-                         (DER-encode (oid->type type-oid) value))
-                       (code:comment "produce a sequence value for base encoder")
-                       `(sequence (type-id ,type-oid)
-                                  (value ,encoded-value-tlv)))
-        #:post-decode (lambda (v)
-                        (code:comment "v was decoded as a sequence value")
-                        (define type-oid (cadr (assq 'type-id (cdr v))))
-                        (define encoded-value-tlv (cadr (assq 'value (cdr v))))
-                        (define decoded-value
-                          (DER-decode (oid->type type-oid)
-                                      envoded-value-tlv))
-                        (.... type-oid decoded-value))))
-]
-
-The code above relies on the fact that encoders and decoders for
-@racket[ANY] process the entire TLV bytestring rather than just the
-value component.
 
 @(close-eval the-eval)

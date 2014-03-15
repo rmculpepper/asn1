@@ -33,6 +33,7 @@ details.
 @include-section["intro.scrbl"]
 @include-section["types.scrbl"]
 @include-section["der.scrbl"]
+@include-section["translating.scrbl"]
 
 @bibliography[
 
