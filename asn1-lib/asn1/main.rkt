@@ -55,6 +55,11 @@
          IA5String
          UTF8String
 
+         OID
+         build-OID
+
+         define-asn1-type
+
          ;; private/base-types.rkt
          printable-string?
          ia5string?
@@ -223,3 +228,29 @@
 (define IA5String (asn1-type:base 'IA5String))
 ;; UTCTime
 (define UTF8String (asn1-type:base 'UTF8String))
+
+;; ============================================================
+
+(begin-for-syntax
+ (define-syntax-class OID-component
+   (pattern n:nat)
+   (pattern (s:identifier n:nat))))
+
+(define-syntax OID
+  (syntax-parser
+   [(OID c:OID-component ...)
+    #'(quote (c.n ...))]))
+
+(define-syntax build-OID
+  (syntax-parser
+   [(OID base c:OID-component ...)
+    #:declare base (expr/c #'(listof exact-nonnegative-integer?))
+    #'(append base.c (quote (c.n ...)))]))
+
+;; ============================================================
+
+(define-syntax define-asn1-type
+  (syntax-parser
+   [(define-asn1-type name:id type)
+    #:declare type (expr/c #'asn1-type?)
+    #'(define name (Delay type.c))]))

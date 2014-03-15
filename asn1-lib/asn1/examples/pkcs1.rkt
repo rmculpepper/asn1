@@ -9,34 +9,11 @@
 ;; ============================================================
 ;; First, some utilities
 
-(module utils racket/base
-  (require racket/match asn1)
-  (provide OID build-OID get-type define-asn1-type)
-
-  ;; Nice notations for OIDs
-  (define-syntax-rule (OID part ...)
-    (oid '(part ...)))
-  (define-syntax-rule (build-OID base part ...)
-    (build-oid base '(part ...)))
-
-  (begin ;; helpers
-    (define (oid ns)
-      (map (lambda (n) (if (list? n) (cadr n) n)) ns))
-    (define (build-oid base ext)
-      (append base (oid ext))))
-
-  ;; get-type : Key (listof (list Key Type)) -> Type
-  (define (get-type key typemap)
-    (cond [(assoc key typemap)
-           => cadr]
-          [else (error 'get-type "no type for key: ~e" key)]))
-
-  ;; Use to define types with forward references.
-  ;; (Could use for all type definitions, but not necessary.)
-  (define-syntax-rule (define-asn1-type id expr)
-    (define id (Delay expr))))
-
-(require 'utils)
+;; get-type : Key (listof (list Key Type)) -> Type
+(define (get-type key typemap)
+  (cond [(assoc key typemap)
+         => cadr]
+        [else (error 'get-type "no type for key: ~e" key)]))
 
 ;; ============================================================
 ;; Transliterated ASN.1 Code Starts
@@ -152,27 +129,8 @@
 ;; }
 
 (define (AlgorithmIdentifier typemap)
-  (Wrap (Sequence [algorithm OBJECT-IDENTIFIER]
-                  [parameters (Wrap ANY #:encode values #:decode values) #:optional])
-        #:pre-encode
-        (lambda (v)
-          (match v
-            [`(sequence [algorithm ,algorithm])
-             `(sequence [algorithm ,algorithm])]
-            [`(sequence [algorithm ,algorithm] [parameters ,parameters])
-             `(sequence [algorithm ,algorithm]
-                        [parameters ,(DER-encode (get-type algorithm typemap)
-                                                 parameters)])]))
-        #:post-decode
-        (lambda (v)
-          (match v
-            [`(sequence [algorithm ,algorithm])
-             `(sequence [algorithm ,algorithm])]
-            [`(sequence [algorithm ,algorithm]
-                        [parameters ,parameters])
-             `(sequence [algorithm ,algorithm]
-                        [parameters ,(DER-decode (get-type algorithm typemap)
-                                                 parameters)])]))))
+  (Sequence [algorithm OBJECT-IDENTIFIER]
+            [#:dependent parameters (get-type algorithm typemap) #:optional]))
 
 ;; ==============
 ;;   Algorithms
