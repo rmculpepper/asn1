@@ -28,11 +28,11 @@
 ;; Asn1-Type is one of
 ;; - (asn1-type:base symbol)
 ;; - (asn1-type:any)
-;; - (asn1-type:sequence (list Asn1-Element-Type ...))
+;; - (asn1-type:sequence (list Asn1-Element ...))
 ;; - (asn1-type:sequence-of Asn1-Type)
-;; - (asn1-type:set (list Asn1-Element-Type ...))
+;; - (asn1-type:set (list Asn1-Element ...))
 ;; - (asn1-type:set-of Asn1-Type)
-;; - (asn1-type:choice (list Asn1-Element-Type ...))
+;; - (asn1-type:choice (list Asn1-Element ...))
 ;; - (asn1-type:tag Tag Asn1-Type)
 ;; - (asn1-type:explicit-tag Asn1-Type)
 ;; - (asn1-type:wrap (Asn1-Type procedure/#f * 4))
@@ -50,10 +50,14 @@
 (struct asn1-type:wrap asn1-type (type pre-encode encode decode post-decode) #:transparent)
 (struct asn1-type:delay asn1-type (promise))
 
-;; Asn1-Element-Type is one of
-;; - (element Symbol MaybeTag Asn1-Type MaybeOptionalDefault)
+;; Asn1-Element is 
+;; - (element Symbol MaybeTag Asn1-Type MaybeOptionalDefault MaybeRefine)
 ;; Desugars explicit tagging into asn1-type:explicit-tag.
-(struct element-type (name tag type option) #:transparent)
+;; refine can only be non-#f in Sequence types
+(struct element (name tag type option refine) #:transparent)
+
+;; Asn1-Sequence-Element is one of
+;; - Asn1-Element
 
 ;; MaybeTag is one of
 ;; - (list class nat)    -- implicit or desugared explicit
@@ -62,6 +66,10 @@
 ;; MaybeOptionalDefault is one of
 ;; - (list 'optional)
 ;; - (list 'default Value)
+;; - #f
+
+;; MaybeRefine is one of
+;; - ((Listof (List Symbol Value)) -> Asn1-Type)
 ;; - #f
 
 ;; ----------------------------------------
@@ -103,7 +111,7 @@
 (define (check-elements who ets)
   (for ([et (in-list ets)])
     (match et
-      [(element-type name tag type _)
+      [(element name tag type _ _)
        (check-can-tag who tag type)])))
 
 (define (check-duplicate-types who ets)
@@ -120,7 +128,7 @@
 
 ;; FIXME: references to defined types may cause force-cycle problems
 
-;; type->tags : (U Asn1-Type Element-Type) -> (listof (U Tag #f))
+;; type->tags : (U Asn1-Type Element) -> (listof (U Tag #f))
 ;; #f means all possible tags; collides with everything
 (define (type->tags t)
   (match t
@@ -144,13 +152,13 @@
     [(asn1-type:tag tag type)
      (list tag)]
     [(asn1-type:explicit-tag type)
-     ;; should always be guarded by element-type w/ tag
+     ;; should always be guarded by element w/ tag
      (error 'type->tags "internal error")]
     [(asn1-type:wrap type _ _ _ _)
      (type->tags type)]
     [(asn1-type:delay promise)
      (type->tags (force promise))]
-    [(element-type name tag type option)
+    [(element name tag type option _)
      (if tag
          (list tag)
          (type->tags type))]))

@@ -106,9 +106,9 @@
       [(asn1-type:choice elts)
        (match v
          [(list (? symbol? sym) v*)
-          (match-define (element-type _ tag* type* _)
+          (match-define (element _ tag* type* _ _)
             (for/or ([elt (in-list elts)])
-              (and (eq? (element-type-name elt) sym) elt)))
+              (and (eq? (element-name elt) sym) elt)))
           (loop type* v* tag* encode-hook-f)]
          [_ (error 'asn1-encode "bad value for Choice type\n  value: ~e" v)])]
       [(asn1-type:tag tag* type*)
@@ -196,10 +196,10 @@
 ;; DER-encode-sequence* : (listof ElementType) Any -> (listof (U Bytes #f))
 (define (DER-encode-sequence* elts v)
   (match v
-    [(cons 'sequence lvs)
-     (match lvs
+    [(cons 'sequence lvs0)
+     (match lvs0
        [(list (list (? symbol?) _) ...)
-        (let loop ([elts elts] [lvs lvs])
+        (let loop ([elts elts] [lvs lvs0])
           (cond [(and (null? elts) (null? lvs))
                  null]
                 [(null? elts)
@@ -208,11 +208,12 @@
                         v (car (car lvs)))]
                 [else
                  (match (car elts)
-                   [(element-type name tag* type* option)
+                   [(element name tag* type* option refine)
                     (cond [(and (pair? lvs)
                                 (eq? (car (car lvs)) name))
-                           (cons (DER-encode type* (cadr (car lvs)) tag*)
-                                 (loop (cdr elts) (cdr lvs)))]
+                           (let ([type** (if refine (refine lvs0) type*)])
+                             (cons (DER-encode type** (cadr (car lvs)) tag*)
+                                   (loop (cdr elts) (cdr lvs))))]
                           [option
                            (loop (cdr elts) lvs)]
                           [else
@@ -229,7 +230,7 @@
      (for/list ([v* (in-list v)]
                 [elt (in-list elts)])
        (match elt
-         [(element-type name tag* type* option)
+         [(element name tag* type* option refine)
           (DER-encode type* v* tag*)]))]
     [_
      (error 'DER-encode-value "bad value for Sequence\n  value: ~e" v)]))
@@ -242,7 +243,7 @@
       [_ (error 'DER-encode-value "bad value for Set type\n  value: ~e" v)]))
   (for/list ([elt (in-list elts)])
     (match elt
-      [(element-type name tag* type* option)
+      [(element name tag* type* option _)
        (define default
          (match option [(list 'default default) default] [_ #f]))
        (cond [(assq name lvs)
@@ -423,7 +424,7 @@
        [(asn1-type:choice elts)
         (let choice-loop ([elts elts])
           (match elts
-            [(cons (and elt0 (element-type et-name _ et-type _)) rest-elts)
+            [(cons (and elt0 (element et-name _ et-type _ _)) rest-elts)
              (if (tag-matches elt0 frame)
                  (list et-name (loop et-type decode-hook-f #f))
                  (choice-loop rest-elts))]
@@ -448,10 +449,10 @@
        [(asn1-type:delay promise)
         (loop (force promise) decode-hook-f check-whole-tag?)]))))
 
-;; tag-matches : Element-Type DER-Frame -> Boolean
+;; tag-matches : Element DER-Frame -> Boolean
 ;; Checks class and tag number for match; FIXME: check p/c
 (define (tag-matches elt frame)
-  ;; (match-define (element-type _ et-tag et-type _) elt)
+  ;; (match-define (element _ et-tag et-type _ _) elt)
   (match-define (DER-frame f-tagclass f-p/c f-tagn _) frame)
   (define et-tags (type->tags elt))
   (for/or ([et-tag (in-list et-tags)])
@@ -544,18 +545,18 @@
 ;;                     -> (cons 'sequence (listof (list Symbol Any)))
 (define (DER-decode-sequence* elts frames)
   (cons 'sequence
-    (let loop ([elts elts] [frames frames])
+    (let loop ([elts elts] [frames frames] [rlvs null])
       (match elts
-        [(cons (and elt0 (element-type et-name et-tag et-type et-option)) rest-elts)
+        [(cons (and elt0 (element et-name et-tag et-type0 et-option et-refine)) rest-elts)
 
          ;; current element is missing; try to skip
          (define (try-skip rest-frames)
            (match et-option
              ['(optional)
-              (loop rest-elts rest-frames)]
+              (loop rest-elts rest-frames rlvs)]
              [(list 'default default-value)
-              (cons (list et-name default-value)
-                    (loop rest-elts rest-frames))]
+              (loop rest-elts rest-frames
+                    (cons (list et-name default-value) rlvs))]
              [#f
               (error 'DER-decode-value
                      "missing field in encoded Sequence\n  field: ~s"
@@ -564,14 +565,15 @@
          (match frames
            [(cons (and frame0 (DER-frame f-tagclass f-p/c f-tagn f-c)) rest-frames)
             (cond [(tag-matches elt0 frame0)
-                   (cons (list et-name (DER-decode-frame et-type frame0))
-                         (loop rest-elts rest-frames))]
+                   (define et-type (if et-refine (et-refine rlvs) et-type0))
+                   (loop rest-elts rest-frames
+                         (cons (list et-name (DER-decode-frame et-type frame0)) rlvs))]
                   [else (try-skip rest-frames)])]
            ['()
             (try-skip '())])]
         ['()
          (if (null? frames)
-             null
+             (reverse rlvs)
              (error 'DER-decode-value
                     "leftover components in encoded Sequence"))]))))
 
@@ -581,7 +583,7 @@
   (cons 'set
     (let loop ([elts elts] [frames frames])
       (match elts
-        [(cons (and elt0 (element-type et-name _ et-type et-option)) rest-elts)
+        [(cons (and elt0 (element et-name _ et-type et-option _)) rest-elts)
          (cond [(for/first ([frame (in-list frames)]
                             #:when (tag-matches elt0 frame))
                   frame)

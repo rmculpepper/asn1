@@ -18,6 +18,7 @@
                      syntax/parse)
          racket/contract
          racket/promise
+         racket/match
          "private/base-types.rkt"
          "private/types.rkt"
          "private/der.rkt"
@@ -105,6 +106,16 @@
    (pattern (~seq #:private)   #:with tclass #'private)
    (pattern (~seq #:application) #:with tclass #'application)
    (pattern (~seq) #:with tclass #'context-specific))
+ (define-splicing-syntax-class tag
+   (pattern (~seq :tag-class #:explicit etag:nat)
+            #:with wrap-type #'asn1-type:explicit-tag
+            #:with tag #''(tclass etag))
+   (pattern (~seq :tag-class #:implicit itag:nat)
+            #:with wrap-type #'values
+            #:with tag #''(tclass itag))
+   (pattern (~seq)
+            #:with wrap-type #'values
+            #:with tag #''#f))
  (define-splicing-syntax-class option-clause
    (pattern (~seq #:optional)
             #:with option #''(optional))
@@ -114,22 +125,51 @@
             #:with option #''#f))
 
  (define-syntax-class element
-   (pattern [name:id :tag-class #:explicit etag:nat type :option-clause]
+   #:attributes (name type.c et)
+   (pattern [name:id :tag type :option-clause]
             #:declare type (expr/c #'asn1-type?)
-            #:with et #'(element-type 'name '(tclass etag)
-                                      (asn1-type:explicit-tag type.c)
-                                      option))
-   (pattern [name:id :tag-class #:implicit itag:nat type :option-clause]
+            #:with et #'(element 'name tag (wrap-type type.c) option #f)))
+
+ (define-syntax-class sequence-element
+   #:attributes (name type.c et dep)
+   (pattern [#:dependent name:id :tag type :option-clause]
             #:declare type (expr/c #'asn1-type?)
-            #:with et #'(element-type 'name '(tclass itag) type.c option))
-   (pattern [name:id type :option-clause]
-            #:declare type (expr/c #'asn1-type?)
-            #:with et #'(element-type 'name '#f type.c option))))
+            #:with et #'(element 'name tag (wrap-type ANY) option #f)
+            #:with dep #'type.c)
+   (pattern :element
+            #:with dep #'#f))
+
+ (define (in-rprefixes lst)
+   ;; Produces list same length as lst
+   (let loop ([lst lst] [rprefix null])
+     (cond [(pair? lst)
+            (cons rprefix (loop (cdr lst) (cons (car lst) rprefix)))]
+           [(null? lst)
+            null]))))
 
 (define-syntax Sequence
   (syntax-parser
-   [(Sequence e:element ...)
-    #'(asn1-type:sequence (check-sequence-types (list e.et ...)))]))
+   [(Sequence e:sequence-element ...)
+    #`(asn1-type:sequence
+       (check-sequence-types
+        (list #,@(for/list ([prefix-names (in-rprefixes (syntax->list #'(e.name ...)))]
+                            [e-et (syntax->list #'(e.et ...))]
+                            [e-dep (syntax->list #'(e.dep ...))])
+                   #`(add-refine #,e-et (wrap-refine #,prefix-names #,e-dep))))))]))
+
+(define (add-refine elt refine)
+  (match elt
+    [(element name tag type option _)
+     (element name tag type option refine)]))
+
+(define-syntax wrap-refine
+  (syntax-parser
+   [(wrap-refine (name ...) #f)
+    #'#f]
+   [(wrap-refine (name ...) type)
+    #'(lambda (lvs)
+        (let ([name (cond [(assq 'name lvs) => cadr] [else #f])] ...)
+          type))]))
 
 (define-syntax Set
   (syntax-parser
