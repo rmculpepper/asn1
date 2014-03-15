@@ -41,7 +41,7 @@
     [OBJECT-IDENTIFIER  6   primitive]
     ;; [REAL               9   primitive] ;; Weird, prob. not worth the effort.
     [ENUMERATED        10   primitive]
-    ;; [RELATIVE-OID      13   primitive]
+    [RELATIVE-OID      13   primitive]
     [SEQUENCE          16   constructed]
     [SET               17   constructed]
     [PrintableString   19   primitive]

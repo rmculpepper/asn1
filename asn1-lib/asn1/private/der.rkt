@@ -182,6 +182,10 @@
      (unless (and (list? v) (andmap exact-nonnegative-integer? v))
        (bad-value '(listof exact-nonnegative-integer?)))
      (encode-object-identifier v)]
+    [(RELATIVE-OID)
+     (unless (and (list? v) (andmap exact-nonnegative-integer? v))
+       (bad-value '(listof exact-nonnegative-integer?)))
+     (encode-relative-oid v)]
     [(ENUMERATED)
      (unless (exact-nonnegative-integer? v) (bad-value 'exact-integer?))
      (signed->base256 v)]
@@ -316,11 +320,17 @@
 (define (encode-object-identifier cs)
   (unless (and (list? cs) (andmap exact-nonnegative-integer? cs))
     (encode-bad 'OBJECT-IDENTIFIER cs '(listof exact-nonnegative-integer?)))
+  (unless (>= (length cs) 2)
+    (encode-bad 'OBJECT-IDENTIFIER cs #:msg "expected at least 2 components"))
   (let ([cs (for/list ([c (in-list cs)])
               (if (list? c) (cadr c) c))])
     (let ([c1 (car cs)]
           [c2 (cadr cs)]
           [cs* (cddr cs)])
+      (unless (< c1 3)
+        (encode-bad 'OBJECT-IDENTIFIER #:msg "first component too big"))
+      (unless (< c2 (if (< c1 2) 40 (- 256 80)))
+        (encode-bad 'OBJECT-IDENTIFIER #:msg "second component too big"))
       (apply bytes-append
              (bytes (+ (* 40 c1) c2))
              (map encode-oid-component cs*)))))
@@ -333,6 +343,10 @@
   (apply bytes
          (let-values ([(q r) (quotient/remainder c 128)])
            (loop q (list r)))))
+(define (encode-relative-oid cs)
+  (unless (and (list? cs) (andmap exact-nonnegative-integer? cs))
+    (encode-bad 'RELATIVE-OID cs '(listof exact-nonnegative-integer?)))
+  (apply bytes-append (map encode-oid-component cs)))
 
 ;; encode-octet-string : Bytes -> Bytes
 (define (encode-octet-string b)
@@ -535,6 +549,8 @@
      #f]
     [(OBJECT-IDENTIFIER)
      (decode-object-identifier c)]
+    [(RELATIVE-OID)
+     (decode-relative-oid c)]
     [(ENUMERATED)
      (base256->signed c)]
     ;; Sequence[Of], Set[Of]
@@ -669,16 +685,20 @@
 
 ;; decode-object-identifier : Bytes -> (listof Nat)
 (define (decode-object-identifier bs)
-  (unless (and (bytes? bs) (positive? (bytes-length bs)))
+  (unless (positive? (bytes-length bs))
     (decode-bad 'OBJECT-IDENTIFIER bs))
   (define in (open-input-bytes bs))
   (define b1 (read-byte in))
   (list* (quotient b1 40) (remainder b1 40)
-         (let loop ()
-           (if (eof-object? (peek-byte in))
-               null
-               (let ([c (decode-oid-component in bs)])
-                 (cons c (loop)))))))
+         (decode-oid-components in bs)))
+(define (decode-relative-oid bs)
+  (decode-oid-components (open-input-bytes bs) bs))
+(define (decode-oid-components in bs)
+  (let loop ()
+    (if (eof-object? (peek-byte in))
+        null
+        (let ([c (decode-oid-component in bs)])
+          (cons c (loop))))))
 (define (decode-oid-component in bs)
   (let loop ([c 0])
     (let ([next (read-byte in)])
@@ -688,6 +708,8 @@
              (+ next (arithmetic-shift c 7))]
             [else
              (loop (+ (- next 128) (arithmetic-shift c 7)))]))))
+
+
 
 ;; decode-octet-string : Bytes -> Bytes
 (define (decode-octet-string b)

@@ -47,10 +47,12 @@
          ANY
          BOOLEAN
          INTEGER
+         ENUMERATED
          BIT-STRING
          OCTET-STRING
          NULL
          OBJECT-IDENTIFIER
+         RELATIVE-OID
          PrintableString
          IA5String
          UTF8String
@@ -223,6 +225,7 @@
 (define OCTET-STRING (asn1-type:base 'OCTET-STRING))
 (define NULL (asn1-type:base 'NULL))
 (define OBJECT-IDENTIFIER (asn1-type:base 'OBJECT-IDENTIFIER))
+(define RELATIVE-OID (asn1-type:base 'RELATIVE-OID))
 (define ENUMERATED (asn1-type:base 'ENUMERATED))
 (define PrintableString (asn1-type:base 'PrintableString))
 ;; T61String

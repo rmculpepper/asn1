@@ -19,6 +19,13 @@ Returns @racket[#t] if @racket[v] is an ASN.1 type, @racket[#f]
 otherwise.
 }
 
+@defform[(define-asn1-type name-id type-expr)
+         #:contracts ([type-expr asn1-type?])]{
+
+Defines @racket[name-id] as @racket[(Delay type-expr)]. Useful for
+defining types with forward references. See also @secref["handling-defs"].
+}
+
 @section[#:tag "base-types"]{Base Types}
 
 @defthing[BOOLEAN asn1-type?]{
@@ -73,6 +80,12 @@ integer is between 0 and 2 (inclusive) and the second is between 0 and
 (define rsadsi '(1 2 840 113549))
 (define pkcs1 (append rsadsi '(1 1)))
 ]
+}
+
+@defthing[RELATIVE-OID asn1-type?]{
+
+Type of relative object identifiers. Represented by Racket
+@racket[(listof exact-nonnegative-integer?)].
 }
 
 @defthing[PrintableString asn1-type?]{
