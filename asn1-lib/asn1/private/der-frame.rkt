@@ -66,18 +66,34 @@
 
 ;; get-tag-bytes : ... -> bytes
 (define (get-tag-bytes class p/c tagn)
-  (bytes
-   (+ (case class
-        [(universal)        0]
-        [(application)      #b01000000]
-        [(context-specific) #b10000000]
-        [(private)          #b11000000]
-        [else (error 'get-tag-bytes "bad class: ~e" class)])
-      (case p/c
-        [(primitive)   0]
-        [(constructed) #b00100000]
-        [else (error 'get-tag-bytes "bad p/c: ~e" p/c)])
-      tagn)))
+  (bytes-append
+   (bytes
+    (+ (case class
+         [(universal)        0]
+         [(application)      #b01000000]
+         [(context-specific) #b10000000]
+         [(private)          #b11000000]
+         [else (error 'get-tag-bytes "bad class: ~e" class)])
+       (case p/c
+         [(primitive)   0]
+         [(constructed) #b00100000]
+         [else (error 'get-tag-bytes "bad p/c: ~e" p/c)])
+       (if (< tagn #b00011111)
+           tagn
+           #b00011111)))
+   (if (< tagn #b00011111)
+       #""
+       (long-tag-bytes tagn))))
+
+(define (long-tag-bytes c)
+  (define (loop c acc)
+    (if (zero? c)
+        acc
+        (let-values ([(q r) (quotient/remainder c 128)])
+          (loop q (cons (bitwise-ior 128 r) acc)))))
+  (apply bytes
+         (let-values ([(q r) (quotient/remainder c 128)])
+           (loop q (list r)))))
 
 ;; length-code : (U nat bytes) -> bytes
 (define (length-code n)
@@ -137,9 +153,11 @@
   (let* ([tag (read-byte in)]
          [c? (bitwise-bit-set? tag (sub1 6))]
          [tagclass (bitwise-bit-field tag 6 8)]
-         [tagnum (bitwise-and tag 31)])
-    (unless (<= 0 tagnum 30)
-      (error 'bytes->frame "high tags not implemented"))
+         [tagnum0 (bitwise-and tag 31)]
+         [tagnum
+          (cond [(<= 0 tagnum0 30)
+                 tagnum0]
+                [else (read-long-tag in)])])
     (list (case tagclass
             [(#b00) 'universal]
             [(#b01) 'application]
@@ -147,6 +165,17 @@
             [(#b11) 'private])
           (if c? 'constructed 'primitive)
           tagnum)))
+
+;; same as object identifier component
+(define (read-long-tag in)
+  (let loop ([c 0])
+    (let ([next (read-byte in)])
+      (cond [(eof-object? next)
+             (error 'read-DER-frame "incomplete tag")]
+            [(< next 128)
+             (+ next (arithmetic-shift c 7))]
+            [else
+             (loop (+ (- next 128) (arithmetic-shift c 7)))]))))
 
 ;; read-length-code : input-port -> nat
 (define (read-length-code in)

@@ -709,8 +709,6 @@
             [else
              (loop (+ (- next 128) (arithmetic-shift c 7)))]))))
 
-
-
 ;; decode-octet-string : Bytes -> Bytes
 (define (decode-octet-string b)
   b)
