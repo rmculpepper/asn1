@@ -223,6 +223,7 @@
 (define OCTET-STRING (asn1-type:base 'OCTET-STRING))
 (define NULL (asn1-type:base 'NULL))
 (define OBJECT-IDENTIFIER (asn1-type:base 'OBJECT-IDENTIFIER))
+(define ENUMERATED (asn1-type:base 'ENUMERATED))
 (define PrintableString (asn1-type:base 'PrintableString))
 ;; T61String
 (define IA5String (asn1-type:base 'IA5String))

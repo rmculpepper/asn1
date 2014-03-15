@@ -182,6 +182,9 @@
      (unless (and (list? v) (andmap exact-nonnegative-integer? v))
        (bad-value '(listof exact-nonnegative-integer?)))
      (encode-object-identifier v)]
+    [(ENUMERATED)
+     (unless (exact-nonnegative-integer? v) (bad-value 'exact-integer?))
+     (signed->base256 v)]
     ;; Sequence[Of], Set[Of]
     [(PrintableString)
      (unless (printable-string? v) (bad-value 'printable-string?))
@@ -532,6 +535,8 @@
      #f]
     [(OBJECT-IDENTIFIER)
      (decode-object-identifier c)]
+    [(ENUMERATED)
+     (base256->signed c)]
     ;; Sequence[Of], Set[Of]
     [(PrintableString)
      (decode-printable-string c)]

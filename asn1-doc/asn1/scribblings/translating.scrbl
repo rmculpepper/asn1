@@ -161,9 +161,6 @@ ASN.1 features not directly supported by this library. (Page numbers
 refer to @cite["Dubuisson2001"].)
 
 @verbatim|>>{
--- pp135-141
-ENUMERATED ::= [UNIVERSAL 10] IMPLICIT INTEGER
-
 -- pp141-145
 REAL ::= [UNIVERSAL 9] IMPLICIT -- complicated --
 

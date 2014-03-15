@@ -32,6 +32,11 @@ Type of arbitrary-precision, signed integers. Corresponds to Racket's
 @racket[exact-integer?].
 }
 
+@defthing[ENUMERATED asn1-type?]{
+
+Type of enumerations. Corresponds to Racket's @racket[exact-integer?].
+}
+
 @defthing[BIT-STRING asn1-type?]{
 
 Type of bit strings, including those that end in a partial
