@@ -74,13 +74,14 @@ faster.
 @examples[#:eval the-eval
 (code:comment "signed")
 (base256-normalize-signed (bytes 0 0 0 1))
-(base256-normalize-signed (bytes 0 128 0 1))
-(base256-normalize-signed (bytes 255 255 128))
+(base256-normalize-signed (bytes 0 0 0 128))
 (base256-normalize-signed (bytes 255 255 1))
+(base256-normalize-signed (bytes 255 255 128))
 (code:comment "unsigned")
 (base256-normalize-unsigned (bytes 0 0 0 1))
-(base256-normalize-unsigned (bytes 0 128 0 1))
+(base256-normalize-unsigned (bytes 0 0 0 128))
 (base256-normalize-unsigned (bytes 255 255 1))
+(base256-normalize-unsigned (bytes 255 255 128))
 ]
 }
 

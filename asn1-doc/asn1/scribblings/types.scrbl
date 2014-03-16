@@ -235,7 +235,7 @@ integer as a @emph{big-endian, signed, two's complement base-256
 integer repesented using the minimum number of octets}. (A
 @hyperlink["https://www.cs.auckland.ac.nz/~pgut001/pubs/x509guide.txt"]{bug
 in some X.509 certificate software} was to encode certain numbers
-using an @emph{unsigned} encoding.)
+using an @emph{unsigned} encoding.) See also @seclink["base256"].
 
 Encoding hooks can also be used to add in support for base types not
 otherwise supported by this library. See

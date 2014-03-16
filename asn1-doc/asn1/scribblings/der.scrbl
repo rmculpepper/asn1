@@ -59,8 +59,7 @@ Reads one DER TLV triple from @racket[in] and decodes it as
 
 Represents a decomposed TLV triple. The tag is broken down into the
 @racket[tagclass], @racket[tagkind], and @racket[tagnum] fields. The
-length is not represented; it is computed from the length of the
-@racket[value] field.
+length is not represented; it is implicit in the @racket[value] field.
 }
 
 @deftogether[[
@@ -99,9 +98,9 @@ Decodes the raw value component @racket[b] as ASN.1 type
 
 Encoding and decoding can be modified through type-indexed hooks,
 which control the encoding and decoding of the @emph{value} components
-of the corresponding types. (Hooks cannot influence the handling of
+of the corresponding types. Hooks cannot influence the handling of
 tag or length components---except in the special case of @racket[ANY]
-type; see below.)
+type.
 
 The hook parameters use @racket[eq?] for type comparison. Use
 @racket[(Wrap _type)] to generate a type equivalent to @racket[_type]
