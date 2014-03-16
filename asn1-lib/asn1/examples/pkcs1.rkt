@@ -1,6 +1,5 @@
 #lang racket/base
-(require racket/match
-         asn1)
+(require asn1)
 (provide (all-defined-out))
 
 ;; Compare with PKCS #1 Appendix C: ASN.1 module
@@ -16,7 +15,13 @@
         [else (error 'get-type "no type for key: ~e" key)]))
 
 ;; ============================================================
-;; Transliterated ASN.1 Code Starts
+;; Organization:
+
+;; The hard way:
+;; - locally reordered definitions
+;; - used define-asn1-type in a few places
+
+;; ============================================================
 
 (define PKCS-1
   (OID (iso 1) (member-body 2) (us 840) (rsadsi 113549)
