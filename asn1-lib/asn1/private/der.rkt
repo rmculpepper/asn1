@@ -231,6 +231,7 @@
                                       (format "\n  got: ~s" (car (car lvs)))
                                       ""))])])]))]
        [_ (error 'DER-encode-value "bad value for Sequence\n  value: ~e" v)])]
+    #|
     [(list _ ...)
      (unless (= (length v) (length elts))
        (error 'DER-encode-value "wrong number of elements for Sequence\n  value: ~e" v))
@@ -239,6 +240,7 @@
        (match elt
          [(element name tag* type* option refine)
           (DER-encode type* v* tag*)]))]
+    |#
     [_
      (error 'DER-encode-value "bad value for Sequence\n  value: ~e" v)]))
 
