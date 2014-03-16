@@ -1,3 +1,8 @@
+-- Source: Public-Key Cryptography Standards (PKCS) #1: RSA Cryptography
+--   Specifications Version 2.1
+--   Appendix C: ASN.1 module
+-- http://www.ietf.org/rfc/rfc3447.txt
+
 PKCS-1 {
     iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-1(1)
     modules(0) pkcs-1(1)

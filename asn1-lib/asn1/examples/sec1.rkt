@@ -2,6 +2,10 @@
 (require asn1)
 (provide (all-defined-out))
 
+;; Compare with Standards for Efficient Cryptography 1 (SEC 1):
+;;   Elliptic Curve Cryptography (v2), Certicom Research
+;; http://www.secg.org/download/aid-780/sec1-v2.pdf
+
 ;; ============================================================
 ;; First, some utilities
 
