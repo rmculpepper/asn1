@@ -13,6 +13,8 @@ This library provides a notation for defining ASN.1 data types and
 encoding and decoding using the ``distinguished encoding rules''
 (DER).
 
+@(local-table-of-contents)
+
 @bold{Development} Development of this library is hosted by
 @hyperlink["http://github.com"]{GitHub} at the following project page:
 
@@ -34,6 +36,7 @@ details.
 @include-section["types.scrbl"]
 @include-section["der.scrbl"]
 @include-section["translating.scrbl"]
+@include-section["util.scrbl"]
 
 @bibliography[
 
@@ -49,5 +52,10 @@ details.
            #:location "RSA Laboratories Technical Note"
            #:date "November 1, 1993"
            #:url "http://luca.ntop.org/Teaching/Appunti/asn1.html"]
+
+@bib-entry[#:key "PKCS1"
+           #:title "PKCS #1: RSA Cryptography, version 2.1"
+           #:author "J. Jonsson and B. Kaliski"
+           #:url "http://www.ietf.org/rfc/rfc3447.txt"]
 
 ]

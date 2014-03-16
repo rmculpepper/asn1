@@ -26,6 +26,7 @@ Defines @racket[name-id] as @racket[(Delay type-expr)]. Useful for
 defining types with forward references. See also @secref["handling-defs"].
 }
 
+
 @section[#:tag "base-types"]{Base Types}
 
 @defthing[BOOLEAN asn1-type?]{
@@ -36,7 +37,7 @@ Type of booleans. Corresponds to Racket's @racket[boolean?].
 @defthing[INTEGER asn1-type?]{
 
 Type of arbitrary-precision, signed integers. Corresponds to Racket's
-@racket[exact-integer?].
+@racket[exact-integer?]. See also @secref["base256"].
 }
 
 @defthing[ENUMERATED asn1-type?]{
@@ -48,14 +49,6 @@ Type of enumerations. Corresponds to Racket's @racket[exact-integer?].
 
 Type of bit strings, including those that end in a partial
 octet. Represented by the @racket[bit-string] struct.
-}
-
-@defstruct*[bit-string ([bytes bytes?] [unused (integer-in 0 7)])]{
-
-Represents a bit string. The first bit in the bit string is the high
-bit of the first octet of @racket[_bytes]. The lowest @racket[_unused]
-bits of the last octet of @racket[_bytes] are not considered part of
-the bit string; they should be set to 0.
 }
 
 @defthing[OCTET-STRING asn1-type?]{
@@ -99,12 +92,6 @@ Represented by Racket strings satisfying the
 @racket[printable-string?] predicate.
 }
 
-@defproc[(printable-string? [v any/c]) boolean?]{
-
-Returns @racket[#t] if @racket[v] is a string containing only the
-characters allowed by @racket[PrintableString], @racket[#f] otherwise.
-}
-
 @defthing[IA5String asn1-type?]{
 
 Type of ASCII string (IA5 is ASCII). Note that ASCII/IA5 consists of
@@ -112,13 +99,6 @@ only 7-bit characters; it is not the same as Latin-1.
 
 Represented by Racket strings satisfying the @racket[ia5string?]
 predicate.
-}
-
-@defproc[(ia5string? [v any/c]) boolean?]{
-
-Returns @racket[#t] if @racket[v] is a string containing only the
-characters allowed by @racket[IA5String] (that is, characters 0
-through 127), @racket[#f] otherwise.
 }
 
 @defthing[UTF8String asn1-type?]{
@@ -315,5 +295,59 @@ the value component.
 (DER-decode ANY-as-bytes (DER-encode IA5String "abc"))
 ]
 }
+
+
+@section[#:tag "type-util"]{ASN.1 Type Utilities}
+
+
+@defstruct*[bit-string ([bytes bytes?] [unused (integer-in 0 7)])]{
+
+Represents a bit string. The first bit in the bit string is the high
+bit of the first octet of @racket[_bytes]. The lowest @racket[_unused]
+bits of the last octet of @racket[_bytes] are not considered part of
+the bit string; they should be set to 0.
+}
+
+@defform[(OID oid-component ...)
+         #:grammar ([oid-component arc-nat
+                                   (arc-name-id arc-nat)])]{
+
+Notation for object identifiers that allows named arcs. The resulting
+value consists only of the arc numbers, however.
+
+@examples[#:eval the-eval
+(OID (iso 1) (member-body 2) (us 840) (rsadsi 113549))
+(OID (iso 1) (member-body 2) (us 840) (rsadsi 113549) (pkcs 1) 1)
+]
+}
+
+@defform[(build-OID oid-expr oid-component ...)
+         #:grammar ([oid-component arc-nat
+                                   (arc-name-id arc-nat)])
+         #:contracts ([oid-expr (listof exact-nonnegative-integer?)])]{
+
+Notation for object identifiers that extend existing object
+identifiers.
+
+@examples[#:eval the-eval
+(define rsadsi (OID (iso 1) (member-body 2) (us 840) (rsadsi 113549)))
+(define pkcs-1 (build-OID rsadsi (pkcs 1) 1))
+pkcs-1
+]
+}
+
+@defproc[(printable-string? [v any/c]) boolean?]{
+
+Returns @racket[#t] if @racket[v] is a string containing only the
+characters allowed by @racket[PrintableString], @racket[#f] otherwise.
+}
+
+@defproc[(ia5string? [v any/c]) boolean?]{
+
+Returns @racket[#t] if @racket[v] is a string containing only the
+characters allowed by @racket[IA5String] (that is, characters 0
+through 127), @racket[#f] otherwise.
+}
+
 
 @(close-eval the-eval)

@@ -20,8 +20,8 @@ using the types to encode and decode data using DER.
 ]
 
 ASN.1 has several familiar base types, such as @racket[INTEGER] and
-@racket[IA5String]. (IA5 is another term for ASCII---the 7-bit
-character set.)
+@racket[IA5String]. (IA5 is the same as ASCII---the 7-bit character
+set.)
 
 Racket values are encoded as instances of an ASN.1 type using the
 @racket[DER-encode] function, which produces a bytestring

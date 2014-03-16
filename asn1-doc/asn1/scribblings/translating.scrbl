@@ -161,10 +161,12 @@ ASN.1 features not directly supported by this library. (Page numbers
 refer to @cite["Dubuisson2001"].)
 
 @verbatim|>>{
--- pp141-145
+-- pp141-145: REAL
+
 REAL ::= [UNIVERSAL 9] IMPLICIT -- complicated --
 
--- p175
+-- p175: Additional string types
+
 NumericString   ::= [UNIVERSAL 18] IMPLICIT OCTET STRING
 VisibleString   ::= [UNIVERSAL 19] IMPLICIT OCTET STRING
 ISO646String    ::= VisibleString
@@ -176,19 +178,21 @@ GeneralString   ::= [UNIVERSAL 27] IMPLICIT ...
 UniversalString ::= [UNIVERSAL 28] IMPLICIT OCTET STRING -- UCS-4
 BMPString       ::= [UNIVERSAL 30] IMPLICIT OCTET STRING -- UCS-2
 
--- pp198-199
+-- pp198-199: Object descriptors
+
 ObjectDescriptor ::= [UNIVERSAL 7] IMPLICIT GraphicString
 
--- pp199-202
+-- pp199-204: Time types
+
 GeneralizedTime ::= [UNIVERSAL 24] IMPLICIT OCTET STRING
   -- YYYYMMDDhh[mm[ss[.f+]]]Z
 
--- pp202-204
 UTCTime         ::= [UNIVERSAL 23] IMPLICIT OCTET STRING
   -- YYMMDDhhmm[ss]Z
   -- Note 2-digit year!
 
--- p303
+-- p301: EXTERNAL
+
 EXTERNAL ::= [UNIVERSAL 8] IMPLICIT SEQUENCE {
   -- at least one of {direct-reference, indirect-reference} is required
   direct-reference      OBJECT IDENTIFIER OPTIONAL,
@@ -198,8 +202,10 @@ EXTERNAL ::= [UNIVERSAL 8] IMPLICIT SEQUENCE {
     single-ASN1-type      [0] EXPLICIT ANY,
     octet-aligned         [1] IMPLICIT OCTET STRING,
     arbitrary             [2] IMPLICIT BIT STRING } }
+  -- This is the pre-1994 abstract syntax of EXTERNAL, but the encoding
+  -- is still based on this rather than the new abstract syntax.
 
--- pp358-361
+-- pp358-361: TYPE-IDENTIFIER and INSTANCE OF
 
 TYPE-IDENTIFIER ::= CLASS {
   &id       OBJECT IDENTIFIER UNIQUE,
@@ -210,8 +216,10 @@ INSTANCE OF ObjectClass.&Type({ObjectSet}) ::=
   [UNIVERSAL 8] IMPLICIT 
   SEQUENCE { type-id ObjectClass.&id({ObjectSet}),
              value [0] EXPLICIT ObjectClass.&Type({ObjectSet})(@.type-id) }
+  -- Note: encoding coincides with EXTERNAL
 
--- pp361-364
+-- pp361-364: ABSTRACT-SYNTAX
+
 ABSTRACT-SYNTAX ::= CLASS {
   &id       OBJECT IDENTIFIER,
   &Type,
