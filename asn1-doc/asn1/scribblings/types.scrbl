@@ -73,6 +73,8 @@ integer is between 0 and 2 (inclusive) and the second is between 0 and
 (define rsadsi '(1 2 840 113549))
 (define pkcs1 (append rsadsi '(1 1)))
 ]
+
+See also @racket[OID] and @racket[build-OID].
 }
 
 @defthing[RELATIVE-OID asn1-type?]{
