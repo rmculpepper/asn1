@@ -166,11 +166,12 @@
            base-type v
            (if expected (format "\n  expected: ~a" expected) "")))
   (case base-type
+    [(BOOLEAN)
+     (encode-boolean v)]
     [(INTEGER)
      (unless (exact-integer? v) (bad-value 'exact-integer?))
      (signed->base256 v)]
     [(BIT-STRING)
-     (unless (bytes? v) (bad-value 'bytes?))
      (encode-bit-string v)]
     [(OCTET-STRING)
      (unless (bytes? v) (bad-value 'bytes?))
@@ -541,6 +542,8 @@
            base-type c
            (if expected (format "\n  expected: ~a" expected) "")))
   (case base-type
+    [(BOOLEAN)
+     (decode-boolean c)]
     [(INTEGER)
      (base256->signed c)]
     [(BIT-STRING)
