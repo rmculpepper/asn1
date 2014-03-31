@@ -103,7 +103,7 @@
              (bytes n)]
             [else
              (let ([nc (unsigned->base256 n)])
-               (unless (< 128 (bytes-length nc))
+               (unless (< (bytes-length nc) 128)
                  (error 'length-code "length too long: ~e" n))
                (bytes-append
                 (bytes (bitwise-ior 128 (bytes-length nc)))
