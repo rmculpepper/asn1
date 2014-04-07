@@ -15,7 +15,7 @@
 
 (define (nonnegative-integer->base256 n as-signed?)
   (if (zero? n)
-      #"0"
+      #"\0"
       (apply bytes
              (let loop ([n n] [acc null])
                (if (zero? n)
