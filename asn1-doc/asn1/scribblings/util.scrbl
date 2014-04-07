@@ -1,15 +1,15 @@
-#lang scribble/doc
-@(require scribble/manual
-          scribble/basic
+#lang scribble/manual
+@(require scribble/basic
           scribble/eval
-          (for-label racket/base
+          (for-label (except-in racket/base sequence?)
                      racket/contract
                      racket/match
                      asn1
-                     asn1/base256))
+                     asn1/base256
+                     asn1/sequence))
 
 @(define the-eval (make-base-eval))
-@(the-eval '(require asn1 asn1/base256))
+@(the-eval '(require asn1 asn1/base256 asn1/sequence))
 
 @title[#:tag "util"]{ASN.1-Related Utilities}
 
@@ -111,6 +111,40 @@ positive integer, or a negative integer, respectively.
 Equivalent to @racket[(zero? (base256->signed b))], @racket[(positive?
 (base256->signed b))], and @racket[(negative? (base256->signed b))],
 respectively.
+}
+
+@section[#:tag "sequence-util"]{ASN.1 Sequence Utilities}
+
+@defmodule[asn1/sequence]
+
+The @racketmodname[asn1/sequence] module provides functions useful for
+dealing with the S-expression representations of ASN.1 sequence
+values. Note: this library is completely unrelated to the Racket
+notion of sequence.
+
+@defproc[(sequence? [v any/c]) boolean?]{
+
+Returns @racket[#t] if @racket[v] is an S-expression representation of
+a @racket[Sequence] value, @racket[#f] otherwise.
+
+@examples[#:eval the-eval
+(sequence? '(sequence [a 1] [b 2]))
+(sequence? (vector 1 2 3))
+]
+}
+
+@defproc[(sequence-ref [s sequence?] [key symbol?] [default any/c (lambda () (error ....))])
+         any]{
+
+Extracts the field named @racket[key] from the sequence @racket[s]. If
+no such field exists, then @racket[default] is called if it is a
+procedure, or returned otherwise.
+
+@examples[#:eval the-eval
+(sequence-ref '(sequence [a 1] [b 2]) 'a)
+(sequence-ref '(sequence [a 1] [b 2]) 'c)
+(sequence-ref '(sequence [a 1] [b 2]) 'c 3)
+]
 }
 
 @(close-eval the-eval)
