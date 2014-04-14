@@ -527,7 +527,7 @@
            (for/list ([frame (in-list (check-sorted 'SetOf (bytes->frames c)))])
              (DER-decode-frame type* frame)))]
     [(asn1-type:explicit-tag type*)
-     (DER-decode type* (bytes->frames c))]
+     (DER-decode type* c)]
     [(asn1-type:tag _ _)
      (error 'DER-decode-value "bad type\n  type: ~e" type)]
     [(asn1-type:choice elts)
