@@ -5,7 +5,8 @@
 
 (define collection "asn1")
 (define deps
-  '("base"))
+  '("base"
+    "binaryio-lib"))
 
 ;; ========================================
 ;; collect info
