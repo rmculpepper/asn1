@@ -19,3 +19,6 @@
 
 (define (base256->signed bs)
   (bytes->integer bs #t #t))
+
+(define (base256-unsigned->signed b)
+  (signed->base256 (base256->unsigned b)))

@@ -57,62 +57,6 @@ Converts between nonnegative integers and their big-endian base-256
 ]
 }
 
-@deftogether[[
-@defproc[(base256-normalize-signed [b bytes?]) bytes?]
-@defproc[(base256-normalize-unsigned [b bytes?]) bytes?]
-]]{
-
-Normalizes the given big-endian base-256 signed or unsigned
-(respectively) encoding. Unnecessary leading 0 bytes are removed from
-nonnegative integers, and unnecessary leading 255 (-1) bytes are
-removed from negative integers.
-
-Equivalent to @racket[(signed->base256 (base256->signed b))] and
-@racket[(unsigned->base256 (base256->unsigned b))], respectively, but
-faster.
-
-@examples[#:eval the-eval
-(code:comment "signed")
-(base256-normalize-signed (bytes 0 0 0 1))
-(base256-normalize-signed (bytes 0 0 0 128))
-(base256-normalize-signed (bytes 255 255 1))
-(base256-normalize-signed (bytes 255 255 128))
-(code:comment "unsigned")
-(base256-normalize-unsigned (bytes 0 0 0 1))
-(base256-normalize-unsigned (bytes 0 0 0 128))
-(base256-normalize-unsigned (bytes 255 255 1))
-(base256-normalize-unsigned (bytes 255 255 128))
-]
-}
-
-@defproc[(base256-unsigned->signed [b bytes?]) bytes?]{
-
-Converts the unsigned encoding of a number to the (normalized) signed
-encoding---essentially, adds a leading 0 byte when necessary.
-
-Equivalent to @racket[(signed->base256 (base256->unsigned b))], but
-faster.
-
-@examples[#:eval the-eval
-(base256-unsigned->signed (bytes 127))
-(base256-unsigned->signed (bytes 128))
-]
-}
-
-@deftogether[[
-@defproc[(base256-signed-zero? [b bytes?]) boolean?]
-@defproc[(base256-signed-positive? [b bytes?]) boolean?]
-@defproc[(base256-signed-negative? [b bytes?]) boolean?]
-]]{
-
-Determines whether @racket[b] is the signed encoding of zero, a
-positive integer, or a negative integer, respectively.
-
-Equivalent to @racket[(zero? (base256->signed b))], @racket[(positive?
-(base256->signed b))], and @racket[(negative? (base256->signed b))],
-respectively.
-}
-
 @section[#:tag "sequence-util"]{ASN.1 Sequence Utilities}
 
 @defmodule[asn1/sequence]

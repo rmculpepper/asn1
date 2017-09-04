@@ -22,8 +22,7 @@
          "private/base-types.rkt"
          "private/types.rkt"
          "private/der.rkt"
-         "private/der-frame.rkt"
-         "private/base256.rkt")
+         "private/der-frame.rkt")
 (provide Sequence
          Set
          Choice
