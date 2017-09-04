@@ -1,5 +1,13 @@
 #lang info
 
-(define collection 'multi)
+;; ========================================
+;; pkg info
 
-(define deps '("base"))
+(define collection "asn1")
+(define deps
+  '("base"))
+
+;; ========================================
+;; collect info
+
+(define name "asn1")
