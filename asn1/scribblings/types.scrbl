@@ -99,7 +99,7 @@ Represented by Racket strings satisfying the
 Type of ASCII string (IA5 is ASCII). Note that ASCII/IA5 consists of
 only 7-bit characters; it is not the same as Latin-1.
 
-Represented by Racket strings satisfying the @racket[ia5string?]
+Represented by Racket strings satisfying the @racket[ascii-string?]
 predicate.
 }
 
@@ -344,7 +344,7 @@ Returns @racket[#t] if @racket[v] is a string containing only the
 characters allowed by @racket[PrintableString], @racket[#f] otherwise.
 }
 
-@defproc[(ia5string? [v any/c]) boolean?]{
+@defproc[(ascii-string? [v any/c]) boolean?]{
 
 Returns @racket[#t] if @racket[v] is a string containing only the
 characters allowed by @racket[IA5String] (that is, characters 0

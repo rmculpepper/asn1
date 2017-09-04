@@ -23,7 +23,7 @@
          tag-entry-p/c
          tag-entry-tag
 
-         ia5string?
+         ascii-string?
          printable-string?
          (struct-out bit-string))
 
@@ -72,11 +72,9 @@
 
 ;; ----
 
-;; ia5string? : Any -> Boolean
-(define (ia5string? s)
-  (and (string? s)
-       (for/and ([c (in-string s)])
-         (< (char->integer c) 256))))
+;; ascii-string? : Any -> Boolean
+(define (ascii-string? s)
+  (and (string? s) (regexp-match? #px"^[[:ascii:]]*$" s)))
 
 ;; printable-string? : Any -> Boolean
 (define (printable-string? s)

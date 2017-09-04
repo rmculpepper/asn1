@@ -196,7 +196,7 @@
      (string->bytes/latin-1 v)]
     ;; T61String
     [(IA5String)
-     (unless (ia5string? v) (bad-value 'ia5string?))
+     (unless (ascii-string? v) (bad-value 'ascii-string?))
      (string->bytes/latin-1 v)]
     ;; UTCTime
     [else (error 'DER-encode-value "unsupported base type\n  type: ~s" base-type)]))
@@ -307,7 +307,7 @@
 
 ;; encode-ia5string : String -> Bytes
 (define (encode-ia5string s)
-  (unless (ia5string? s) (encode-bad 'IA5String s 'ia5string?))
+  (unless (ascii-string? s) (encode-bad 'IA5String s 'ascii-string?))
   (string->bytes/latin-1 s))
 
 ;; encode-integer : Exact-Integer -> Bytes
@@ -673,7 +673,7 @@
 ;; decode-ia5string : Bytes -> String
 (define (decode-ia5string bs)
   (define s (bytes->string/latin-1 bs))
-  (unless (ia5string? s)
+  (unless (ascii-string? s)
     (decode-bad 'IA5string bs))
   s)
 

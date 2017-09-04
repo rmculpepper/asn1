@@ -63,7 +63,7 @@
 
          ;; private/base-types.rkt
          printable-string?
-         ia5string?
+         ascii-string?
 
          (contract-out
           ;; private/base-types.rkt
