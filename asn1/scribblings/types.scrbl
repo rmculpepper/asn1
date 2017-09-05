@@ -22,8 +22,10 @@ otherwise.
 @defform[(define-asn1-type name-id type-expr)
          #:contracts ([type-expr asn1-type?])]{
 
-Defines @racket[name-id] as @racket[(Delay type-expr)]. Useful for
-defining types with forward references. See also @secref["handling-defs"].
+Equivalent to
+@racketblock[(define name-id (Delay type-expr))]
+Useful for defining types with forward references. See also
+@secref["handling-defs"].
 }
 
 
@@ -162,13 +164,22 @@ See also @secref["handling-info"].
          #:contracts ([component-type asn1-type?])]{
 
 Corresponds the ASN.1 SET type form.
+
+Represented by Racket values of the following form:
+@racketblock[(list 'set _component-value ...)]
+where each @racket[_component-value] is a @racket[component-type] value.
 }
 
-@defform[(Choice alternative ...)
-         #:grammar ([alternative [name-id maybe-tag alternative-type maybe-option]])
-         #:contracts ([alternative-type asn1-type?])]{
+@defform[(Choice variant ...)
+         #:grammar ([variant [name-id maybe-tag variant-type maybe-option]])
+         #:contracts ([variant-type asn1-type?])]{
 
 Corresonds to the ASN.1 CHOICE type form.
+
+Represented by Racket values of the following form:
+@racketblock[(list _variant-name-symbol _variant-value)]
+where @racket[_variant-value] is a value of the @racket[variant-type] in the
+variant named by @racket[_variant-name-symbol].
 }
 
 @defform[(Tag maybe-tag-class tag type)
@@ -177,6 +188,8 @@ Corresonds to the ASN.1 CHOICE type form.
          #:contracts ([type asn1-type?])]{
 
 Corresponds to an ASN.1 alternatively tagged type.
+
+The representation is the same as that of @racket[type].
 }
 
 @defproc[(Wrap [type asn1-type?]
@@ -263,12 +276,20 @@ references.
          asn1-type?]{
 
 Corresponds to the ASN.1 SEQUENCE OF type form.
+
+Represented by Racket values of the following form:
+@racketblock[(list 'sequence-of _component-value ...)]
+where each @racket[_component-value] is a @racket[component-type] value.
 }
 
 @defproc[(SetOf [component-type asn1-type?])
          asn1-type?]{
 
 Corresponds the the ASN.1 SET OF type form.
+
+Represented by Racket values of the following form:
+@racketblock[(list 'set-of _component-value ...)]
+where each @racket[_component-value] is a @racket[component-type] value.
 }
 
 
