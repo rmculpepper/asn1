@@ -168,6 +168,26 @@ Represented by Racket values of the following form:
 where each @racket[_component-value] is a @racket[component-type] value.
 }
 
+@defproc[(SequenceOf [component-type asn1-type?])
+         asn1-type?]{
+
+Corresponds to the ASN.1 SEQUENCE OF type form.
+
+Represented by Racket values of the following form:
+@racketblock[(list _component-value ...)]
+where each @racket[_component-value] is a @racket[component-type] value.
+}
+
+@defproc[(SetOf [component-type asn1-type?])
+         asn1-type?]{
+
+Corresponds the the ASN.1 SET OF type form.
+
+Represented by Racket values of the following form:
+@racketblock[(list _component-value ...)]
+where each @racket[_component-value] is a @racket[component-type] value.
+}
+
 @defform[(Choice variant ...)
          #:grammar ([variant [name-id maybe-tag variant-type maybe-option]])
          #:contracts ([variant-type asn1-type?])]{
@@ -269,26 +289,6 @@ decoding, or to check the well-formedness of another type.
 
 Use @racket[Delay] to write recursive types or types with forward
 references.
-}
-
-@defproc[(SequenceOf [component-type asn1-type?])
-         asn1-type?]{
-
-Corresponds to the ASN.1 SEQUENCE OF type form.
-
-Represented by Racket values of the following form:
-@racketblock[(list _component-value ...)]
-where each @racket[_component-value] is a @racket[component-type] value.
-}
-
-@defproc[(SetOf [component-type asn1-type?])
-         asn1-type?]{
-
-Corresponds the the ASN.1 SET OF type form.
-
-Represented by Racket values of the following form:
-@racketblock[(list _component-value ...)]
-where each @racket[_component-value] is a @racket[component-type] value.
 }
 
 
