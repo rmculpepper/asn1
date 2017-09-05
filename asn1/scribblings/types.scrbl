@@ -39,7 +39,7 @@ Type of booleans. Corresponds to Racket's @racket[boolean?].
 @defthing[INTEGER asn1-type?]{
 
 Type of arbitrary-precision, signed integers. Corresponds to Racket's
-@racket[exact-integer?]. See also @secref["base256"].
+@racket[exact-integer?].
 }
 
 @defthing[ENUMERATED asn1-type?]{
@@ -267,7 +267,7 @@ integer as a @emph{big-endian, signed, two's complement base-256
 integer repesented using the minimum number of octets}. (A
 @hyperlink["https://www.cs.auckland.ac.nz/~pgut001/pubs/x509guide.txt"]{bug
 in some X.509 certificate software} was to encode certain numbers
-using an @emph{unsigned} encoding.) See also @seclink["base256"].
+using an @emph{unsigned} encoding.)
 
 Encoding hooks can also be used to add in support for base types not
 otherwise supported by this library. See

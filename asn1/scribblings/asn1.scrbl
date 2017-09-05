@@ -36,7 +36,6 @@ details.
 @include-section["types.scrbl"]
 @include-section["der.scrbl"]
 @include-section["translating.scrbl"]
-@include-section["util.scrbl"]
 
 @bibliography[
 
