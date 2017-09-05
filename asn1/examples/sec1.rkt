@@ -140,14 +140,14 @@
 
 (define (FieldID typemap)
   (Sequence [fieldType OBJECT-IDENTIFIER]
-            [#:dependent parameters (get-type fieldType typemap)]))
+            [parameters #:dependent (get-type fieldType typemap)]))
 
 (define Prime-p INTEGER) ;; -- Field of size p.
 
 (define Characteristic-two
   (Sequence [m INTEGER] ;; -- Field size 2m
             [basis OBJECT-IDENTIFIER]
-            [#:dependent parameters (get-type basis BasisTypes)]))
+            [parameters #:dependent (get-type basis BasisTypes)]))
 
 (define Trinomial INTEGER)
 
@@ -203,7 +203,7 @@
 
 (define (AlgorithmIdentifier typemap)
   (Sequence [algorithm OBJECT-IDENTIFIER]
-            [#:dependent parameters (get-type algorithm typemap) #:optional]))
+            [parameters #:dependent (get-type algorithm typemap) #:optional]))
 
 (define-asn1-type HashAlgorithm (AlgorithmIdentifier HashFunctions))
 

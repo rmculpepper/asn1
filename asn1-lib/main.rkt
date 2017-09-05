@@ -131,19 +131,21 @@
             #:with option #''#f))
 
  (define-syntax-class element
-   #:attributes (name type.c et)
+   #:attributes (name et)
    (pattern [name:id :tag type :option-clause]
             #:declare type (expr/c #'asn1-type?)
             #:with et #'(element 'name tag (wrap-type type.c) option #f)))
 
  (define-syntax-class sequence-element
-   #:attributes (name type.c et dep)
-   (pattern [#:dependent name:id :tag type :option-clause]
+   #:attributes (name et dep)
+   (pattern [name:id :tag type :option-clause]
+            #:declare type (expr/c #'asn1-type?)
+            #:with et #'(element 'name tag (wrap-type type.c) option #f)
+            #:with dep #'#f)
+   (pattern [name:id :tag #:dependent type :option-clause]
             #:declare type (expr/c #'asn1-type?)
             #:with et #'(element 'name tag (wrap-type ANY) option #f)
-            #:with dep #'type.c)
-   (pattern :element
-            #:with dep #'#f))
+            #:with dep #'type.c))
 
  (define (in-rprefixes lst)
    ;; Produces list same length as lst

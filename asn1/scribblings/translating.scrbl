@@ -111,7 +111,7 @@ dependent sequence field type.
 @racketblock[
 (define (AlgorithmIdentifier InfoObjectSet)
   (Sequence [algorithm OBJECT-IDENTIFIER]
-            [#:dependent parameters (cadr (assoc algorithm InfoObjectSet))]))
+            [parameters #:dependent (cadr (assoc algorithm InfoObjectSet))]))
 (define HashAlgorithm (AlgorithmIdentifier OAEP-PSSDigestAlgorithms))
 ]
 
@@ -240,7 +240,7 @@ An INSTANCE OF type can be represented by the following pattern (from
 (define (InstanceOf oid->type)
   (Tag #:universal #:implicit 8
        (Sequence [type-id OBJECT-IDENTIFIER]
-                 [#:dependent value #:explicit 0 (oid->type type-id)])))
+                 [value #:explicit 0 #:dependent (oid->type type-id)])))
 ]
 
 where the @racket[oid->type] argument represents the information

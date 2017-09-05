@@ -115,7 +115,7 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
 
 @defform[(Sequence component ...)
          #:grammar ([component [name-id maybe-tag component-type maybe-option]
-                               [#:dependent name-id maybe-tag component-type maybe-option]]
+                               [name-id maybe-tag #:dependent component-type maybe-option]]
                     [maybe-tag (code:line)
                                (code:line maybe-tag-class #:implicit tag-number)
                                (code:line maybe-tag-class #:explicit tag-number)]
@@ -143,7 +143,7 @@ time the type is used for encoding or decoding.
 @examples[#:eval the-eval
 (define IntOrString
   (Sequence [type-id INTEGER]
-            [#:dependent value (get-type type-id)]))
+            [value #:dependent (get-type type-id)]))
 (code:comment "get-type : Integer -> Asn1-Type")
 (define (get-type type-id)
   (case type-id

@@ -135,7 +135,7 @@
 
 (define (AlgorithmIdentifier typemap)
   (Sequence [algorithm OBJECT-IDENTIFIER]
-            [#:dependent parameters (get-type algorithm typemap) #:optional]))
+            [parameters #:dependent (get-type algorithm typemap) #:optional]))
 
 ;; ==============
 ;;   Algorithms
