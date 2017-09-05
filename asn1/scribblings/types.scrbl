@@ -130,12 +130,10 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
 
 Corresponds to the ASN.1 SEQUENCE type form.
 
-Represented by Racket values of the following form:
-
-@racketblock[(list 'sequence (list 'name-id _component-value) ...)]
-
-That is, each @racket[_component-value] is labeled with the same
-symbol as the corresponding @racket[component] of the type.
+Represented by Racket hashes of the following form:
+@racketblock[(hasheq 'name-id _component-value ... ...)]
+That is, the hash maps component-name symbols to the corresponding
+@racket[component-type] field values.
 
 If a @racket[component] is specified with the @racket[#:dependent]
 keyword, then that @racket[component-type] is not a constant, but is
@@ -152,8 +150,8 @@ time the type is used for encoding or decoding.
     [(1) INTEGER]
     [(2) IA5String]
     [else (error 'get-type "unknown type-id: ~e" type-id)]))
-(DER-encode IntOrString '(sequence [type-id 1] [value 729072]))
-(DER-encode IntOrString '(sequence [type-id 2] [value "hello"]))
+(DER-encode IntOrString (hasheq 'type-id 1 'value 729072))
+(DER-encode IntOrString (hasheq 'type-id 2 'value "hello"))
 ]
 
 See also @secref["handling-info"].
@@ -166,7 +164,7 @@ See also @secref["handling-info"].
 Corresponds the ASN.1 SET type form.
 
 Represented by Racket values of the following form:
-@racketblock[(list 'set _component-value ...)]
+@racketblock[(hash 'name-id _component-value ... ...)]
 where each @racket[_component-value] is a @racket[component-type] value.
 }
 
@@ -234,12 +232,13 @@ the value directly as a bytestring:
 @interaction[#:eval the-eval
 (define MyInteger
   (Wrap INTEGER #:encode (lambda (b) b)))
+(define Signature (Sequence [r MyInteger] [s MyInteger]))
 (define sig
-  (DER-encode (Sequence [r MyInteger] [s MyInteger])
-              '(sequence [r #"}nSi|-uy"]
-                         [s #"y\21~P#3\37\b"])))
+  (DER-encode Signature
+              (hasheq 'r #"}nSi|-uy"
+                      's #"y\21~P#3\37\b")))
 sig
-(DER-decode (Sequence [r INTEGER] [s INTEGER]) sig)
+(DER-decode Signature sig)
 ]
 
 Beware, no checking is done on the bytestring! In the example above,
@@ -278,7 +277,7 @@ references.
 Corresponds to the ASN.1 SEQUENCE OF type form.
 
 Represented by Racket values of the following form:
-@racketblock[(list 'sequence-of _component-value ...)]
+@racketblock[(list _component-value ...)]
 where each @racket[_component-value] is a @racket[component-type] value.
 }
 
@@ -288,7 +287,7 @@ where each @racket[_component-value] is a @racket[component-type] value.
 Corresponds the the ASN.1 SET OF type form.
 
 Represented by Racket values of the following form:
-@racketblock[(list 'set-of _component-value ...)]
+@racketblock[(list _component-value ...)]
 where each @racket[_component-value] is a @racket[component-type] value.
 }
 

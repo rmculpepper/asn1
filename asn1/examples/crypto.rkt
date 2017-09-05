@@ -1,6 +1,5 @@
 #lang racket/base
-(require asn1
-         asn1/sequence)
+(require asn1)
 (provide (all-defined-out))
 
 #|
@@ -43,7 +42,7 @@ References:
             [#:dependent subjectPublicKey (BIT-STRING-containing algorithm)]))
 
 (define (BIT-STRING-containing alg)
-  (define alg-oid (sequence-ref alg 'algorithm))
+  (define alg-oid (hash-ref alg 'algorithm))
   (cond [(get-type2 alg-oid known-public-key-algorithms)
          => (lambda (type)
               (Wrap BIT-STRING
@@ -245,7 +244,7 @@ References:
             [attributes #:implicit 0   Attributes #:optional]))
 
 (define (PrivateKey alg)
-  (define alg-oid (sequence-ref alg 'algorithm))
+  (define alg-oid (hash-ref alg 'algorithm))
   (cond [(get-type alg-oid known-private-key-formats)
          => (lambda (type)
               (Wrap OCTET-STRING

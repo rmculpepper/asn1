@@ -5,11 +5,10 @@
                      racket/contract
                      racket/match
                      asn1
-                     asn1/base256
-                     asn1/sequence))
+                     asn1/base256))
 
 @(define the-eval (make-base-eval))
-@(the-eval '(require asn1 asn1/base256 asn1/sequence))
+@(the-eval '(require asn1 asn1/base256))
 
 @title[#:tag "util"]{ASN.1-Related Utilities}
 
@@ -54,40 +53,6 @@ Converts between nonnegative integers and their big-endian base-256
 (base256->unsigned (bytes 127))
 (base256->unsigned (bytes 128))
 (base256->unsigned (bytes 1 1))
-]
-}
-
-@section[#:tag "sequence-util"]{ASN.1 Sequence Utilities}
-
-@defmodule[asn1/sequence]
-
-The @racketmodname[asn1/sequence] module provides functions useful for
-dealing with the S-expression representations of ASN.1 sequence
-values. Note: this library is completely unrelated to the Racket
-notion of sequence.
-
-@defproc[(sequence? [v any/c]) boolean?]{
-
-Returns @racket[#t] if @racket[v] is an S-expression representation of
-a @racket[Sequence] value, @racket[#f] otherwise.
-
-@examples[#:eval the-eval
-(sequence? '(sequence [a 1] [b 2]))
-(sequence? (vector 1 2 3))
-]
-}
-
-@defproc[(sequence-ref [s sequence?] [key symbol?] [default any/c (lambda () (error ....))])
-         any]{
-
-Extracts the field named @racket[key] from the sequence @racket[s]. If
-no such field exists, then @racket[default] is called if it is a
-procedure, or returned otherwise.
-
-@examples[#:eval the-eval
-(sequence-ref '(sequence [a 1] [b 2]) 'a)
-(sequence-ref '(sequence [a 1] [b 2]) 'c)
-(sequence-ref '(sequence [a 1] [b 2]) 'c 3)
 ]
 }
 

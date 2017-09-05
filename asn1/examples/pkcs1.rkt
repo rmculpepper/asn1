@@ -169,7 +169,7 @@
 
 (define SHA1Parameters NULL)
 
-(define sha1 '(sequence [algorithm ,id-sha1] [parameters ,#f]))
+(define sha1 (hasheq 'algorithm id-sha1 'parameters #f))
 ;; parameters included for compat. with existing impls.
 
 ;; Allowed mask generation function algorithms.
@@ -182,7 +182,7 @@
 ;; Default AlgorithmIdentifier for id-RSAES-OAEP.maskGenAlgorithm and
 ;; id-RSASSA-PSS.maskGenAlgorithm.
 (define mgf1SHA1 ;;  MaskGenAlgorithm
-  `(sequence [algorithm ,id-mgf1] [parameters ,sha1]))
+  (hasheq 'algorithm id-mgf1 'parameters sha1))
 
 (define EncodingParameters OCTET-STRING) ;; SIZE(0..MAX)
 
@@ -196,8 +196,7 @@
 (define PSourceAlgorithm (AlgorithmIdentifier PKCS1PSourceAlgorithms))
 (define emptyString #"") ;; EncodingParameters
 (define pSpecifiedEmpty ;; PSourceAlgorithm
-  `(sequence [algorithm ,id-pSpecified]
-             [parameters ,#""]))
+  (hasheq 'algorithm id-pSpecified 'parameters #""))
 
 ;; Type identifier definitions for the PKCS #1 OIDs.
 (define PKCS1Algorithms
@@ -261,11 +260,10 @@
 ;; -- Notice that the DER encoding of default values is "empty".
 
 (define rSAES-OAEP-Default-Identifier  ;; RSAES-AlgorithmIdentifier
-  `(sequence [algorithm ,id-RSAES-OAEP]
-             [parameters  ;; RSAES-OAEP-params
-              ,`(sequence [hashAlgorithm ,sha1]
-                          [maskGenAlgorithm ,mgf1SHA1]
-                          [pSourceAlgorithm ,pSpecifiedEmpty])]))
+  (hasheq 'algorithm id-RSAES-OAEP
+          'parameters (hasheq 'hashAlgorithm sha1
+                              'maskGenAlgorithm mgf1SHA1
+                              'pSourceAlgorithm pSpecifiedEmpty)))
 
 (define RSAES-AlgorithmIdentifier (AlgorithmIdentifier PKCS1Algorithms))
 
@@ -289,12 +287,11 @@
 ;; -- Notice that the DER encoding of default values is "empty".
 
 (define rSASSA-PSS-Default-Identifier  ;; RSASSA-AlgorithmIdentifier
-  `(sequence [algorithm   ,id-RSASSA-PSS]
-             [parameters  ;; RSASSA-PSS-params
-              ,`(sequence [hashAlgorithm       ,sha1]
-                          [maskGenAlgorithm    ,mgf1SHA1]
-                          [saltLength          ,20]
-                          [trailerField        ,trailerFieldBC])]))
+  (hasheq 'algorithm id-RSASSA-PSS
+          'parameters (hasheq 'hashAlgorithm sha1
+                              'maskGenAlgorithm mgf1SHA1
+                              'saltLength 20
+                              'trailerField trailerFieldBC)))
 
 (define RSASSA-AlgorithmIdentifier (AlgorithmIdentifier PKCS1Algorithms))
 

@@ -1,4 +1,4 @@
-;; Copyright 2014 Ryan Culpepper
+;; Copyright 2014-2017 Ryan Culpepper
 ;; 
 ;; This library is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU Lesser General Public License as published
@@ -61,10 +61,9 @@
 ;; DER-encode : T V[T] -> E[T]
 ;; - bytes/integer/etc    Base-Type                          -> E[_]
 ;; - (SequenceOf T)       (list V[T] ...)                    -> E[_]
-;; - (Sequence [L T] ...) (list 'sequence (list L V[T]) ...) -> E[_]
-;; - (Sequence [L T] ...) (list V[T] ...)                    -> E[_]
 ;; - (SetOf T)            (list V[T] ...)                    -> E[_]
-;; - (Set [L T] ...)      (list 'set (list L V[T]) ...)      -> E[_]
+;; - (Sequence [L T] ...) (hasheq [L => V[T]] ...)           -> E[_]
+;; - (Set [L T] ...)      (hasheq [L => V[T]) ...)           -> E[_]
 ;; - (Choice [L T] ...)   (list L V[T])                      -> E[_]
 
 (define (DER-encode type v [alt-tag #f])
@@ -126,30 +125,27 @@
   (match type
     [(asn1-type:any)
      ;; ANY must be handled by encode hook
-     (error 'DER-encode-value
-            "no default encoding rule for ANY\n  value: ~e" v)]
+     (error 'DER-encode-value "no default encoding rule for ANY\n  value: ~e" v)]
     [(asn1-type:base base-type)
      (DER-encode-base* base-type v)]
     [(asn1-type:sequence elts)
-     (encode-sequence (filter values (DER-encode-sequence* elts v)))]
+     (unless (and (hash? v) (for/and ([key (in-hash-keys v)]) (symbol? key)))
+       (error 'DER-encode-value "bad value for Sequence type\n  value: ~e" v))
+     (apply bytes-append (DER-encode-elts elts v 'Sequence))]
     [(asn1-type:sequence-of type*)
-     (match v
-       [(list 'sequence-of v*s ...)
-        (encode-sequence
-         (for/list ([v* (in-list v*s)])
-           (DER-encode type* v* #f)))]
-       [_ (error 'DER-encode-value "bad value for SequenceOf type\n  value: ~e" v)])]
+     (unless (list? v)
+       (error 'DER-encode-value "bad value for SequenceOf type\n  value: ~e" v))
+     (apply bytes-append (for/list ([elem (in-list v)]) (DER-encode type* elem #f)))]
     [(asn1-type:set elts)
-     (encode-set (filter values (DER-encode-set* elts v)))]
+     (unless (and (hash? v) (for/and ([key (in-hash-keys v)]) (symbol? key)))
+       (error 'DER-encode-value "bad value for Sequence type\n  value: ~e" v))
+     (encode-set (DER-encode-elts elts v 'Set))]
     [(asn1-type:set-of type*)
-     (match v
-       [(list 'set-of v*s ...)
-        (encode-set
-         (for/list ([v* (in-list v*s)])
-           (DER-encode type* v* #f)))]
-       [_ (error 'DER-encode-value "bad value for SetOf type\n  value: ~e" v)])]
+     (unless (list? v)
+       (error 'DER-encode-value "bad value for SetOf type\n  value: ~e" v))
+     (encode-set (for/list ([elem (in-list v)]) (DER-encode type* elem #f)))]
     [(asn1-type:explicit-tag type*)
-     (encode-sequence (list (DER-encode type* v)))]
+     (DER-encode type* v)]
     [(asn1-type:tag _ _)
      (error 'DER-encode-value "bad type\n  type: ~e" type)]
     [(asn1-type:choice _)
@@ -201,75 +197,24 @@
     ;; UTCTime
     [else (error 'DER-encode-value "unsupported base type\n  type: ~s" base-type)]))
 
-;; DER-encode-sequence* : (listof ElementType) Any -> (listof (U Bytes #f))
-(define (DER-encode-sequence* elts v)
-  (match v
-    [(cons 'sequence lvs0)
-     (match lvs0
-       [(list (list (? symbol?) _) ...)
-        (let loop ([elts elts] [lvs lvs0])
-          (cond [(and (null? elts) (null? lvs))
-                 null]
-                [(null? elts)
-                 (error 'DER-encode-value
-                        "unexpected field in Sequence value\n  value: ~e\n  field: ~s"
-                        v (car (car lvs)))]
-                [else
-                 (match (car elts)
-                   [(element name tag* type* option refine)
-                    (cond [(and (pair? lvs)
-                                (eq? (car (car lvs)) name))
-                           (let ([type** (if refine (refine lvs0) type*)])
-                             (cons (DER-encode type** (cadr (car lvs)) tag*)
-                                   (loop (cdr elts) (cdr lvs))))]
-                          [option
-                           (loop (cdr elts) lvs)]
-                          [else
-                           (error 'DER-encode-value
-                                  "missing field in Sequence value\n  value: ~e\n  field: ~s~a"
-                                  name v
-                                  (if (pair? lvs)
-                                      (format "\n  got: ~s" (car (car lvs)))
-                                      ""))])])]))]
-       [_ (error 'DER-encode-value "bad value for Sequence\n  value: ~e" v)])]
-    #|
-    [(list _ ...)
-     (unless (= (length v) (length elts))
-       (error 'DER-encode-value "wrong number of elements for Sequence\n  value: ~e" v))
-     (for/list ([v* (in-list v)]
-                [elt (in-list elts)])
-       (match elt
-         [(element name tag* type* option refine)
-          (DER-encode type* v* tag*)]))]
-    |#
-    [_
-     (error 'DER-encode-value "bad value for Sequence\n  value: ~e" v)]))
-
-;; DER-encode-set* : (listof ElementType) Any -> (listof (U Bytes #f))
-(define (DER-encode-set* elts v)
-  (define lvs
-    (match v
-      [(list 'set (and lvs (list (list l v) ...))) lvs]
-      [_ (error 'DER-encode-value "bad value for Set type\n  value: ~e" v)]))
+;; DER-encode-elts : (listof ElementType) Hash[Symbol => Any] Symbol -> (listof Bytes)
+(define (DER-encode-elts elts h kind)
+  ;; FIXME: check for unexpected fields?
   (for/list ([elt (in-list elts)])
     (match elt
-      [(element name tag* type* option _)
-       (define default
-         (match option [(list 'default default) default] [_ #f]))
-       (cond [(assq name lvs)
-              => (lambda (lv)
-                   (define v* (cadr lv))
-                   (if (equal? v* default)
-                       #f
-                       (DER-encode type* v* tag*)))]
-             [(equal? option '(optional))
-              #f]
-             [default
-               ;; Don't encode default
-               #f]
-             [else
-              (error 'DER-encode-value "no value for Set field\n  field: ~s\n  value: ~e"
-                     name v)])])))
+      [(element name tag* type* option refine)
+       (define type** (if refine (refine h) type*))
+       (define default (match option [(list 'default default) default] [_ none]))
+       (define value (hash-ref h name default))
+       (cond [(and option (equal? value default))
+              #""]
+             [(eq? value none)
+              (error 'DER-encode-value
+                     "missing required field in ~s value\n  field: ~s\n  value: ~e"
+                     kind name h)]
+             [else (DER-encode type** value)])])))
+
+(define none (gensym))
 
 ;; ----
 
@@ -365,17 +310,8 @@
   (unless (string? s) (encode-bad 'UTF8String s 'string?))
   (string->bytes/utf-8 s))
 
-;; encode-sequence : (listof Bytes) -> Bytes
-(define (encode-sequence lst)
-  (unless (and (list? lst) (andmap bytes? lst))
-    (encode-bad 'SEQUENCE lst '(listof bytes?)))
-  (apply bytes-append lst))
-
 ;; encode-set : (listof Bytes) -> Bytes
-(define (encode-set lst)
-  (unless (and (list? lst) (andmap bytes? lst))
-    (encode-bad 'SET lst '(listof bytes?)))
-  (apply bytes-append (sort lst bytes<?)))
+(define (encode-set lst) (apply bytes-append (sort lst bytes<?)))
 
 ;; ============================================================
 
@@ -501,31 +437,27 @@
      (define base-type (tag-entry-type te))
      (case base-type
        [(SEQUENCE)
-        (cons 'sequence-of
-              (for/list ([frame (in-list (bytes->frames content))])
-                ;; Note: type = ANY; reuse it
-                (DER-decode-frame type frame)))]
+        (for/list ([frame (in-list (bytes->frames content))])
+          ;; Note: type = ANY; reuse it
+          (DER-decode-frame type frame))]
        [(SET)
         ;; FIXME: if validating DER of SET, need to check frames are sorted
-        (cons 'set-of
-              (for/list ([frame (in-list (bytes->frames content))])
-                ;; Note: type = ANY; reuse it
-                (DER-decode-frame type frame)))]
+        (for/list ([frame (in-list (bytes->frames content))])
+          ;; Note: type = ANY; reuse it
+          (DER-decode-frame type frame))]
        [else (DER-decode-base* base-type content)])]
     [(asn1-type:base base-type)
      (DER-decode-base* base-type c)]
     [(asn1-type:sequence elts)
      (DER-decode-sequence* elts (bytes->frames c))]
     [(asn1-type:sequence-of type*)
-     (cons 'sequence-of
-           (for/list ([frame (in-list (bytes->frames c))])
-             (DER-decode-frame type* frame)))]
+     (for/list ([frame (in-list (bytes->frames c))])
+       (DER-decode-frame type* frame))]
     [(asn1-type:set elts)
      (DER-decode-set* elts (check-sorted 'Set (bytes->frames c)))]
     [(asn1-type:set-of type*)
-     (cons 'set-of
-           (for/list ([frame (in-list (check-sorted 'SetOf (bytes->frames c)))])
-             (DER-decode-frame type* frame)))]
+     (for/list ([frame (in-list (check-sorted 'SetOf (bytes->frames c)))])
+       (DER-decode-frame type* frame))]
     [(asn1-type:explicit-tag type*)
      (DER-decode type* c)]
     [(asn1-type:tag _ _)
@@ -567,71 +499,48 @@
     ;; UTCTime
     [else (error 'DER-decode-value "unsupported base type\n  type: ~s" base-type)]))
 
-;; DER-decode-sequence* : (listof ElementType) (listof Frame)
-;;                     -> (cons 'sequence (listof (list Symbol Any)))
+;; DER-decode-sequence* : (listof ElementType) (listof Frame) -> Hasheq[Symbol => Any]
 (define (DER-decode-sequence* elts frames)
-  (cons 'sequence
-    (let loop ([elts elts] [frames frames] [rlvs null])
-      (match elts
-        [(cons (and elt0 (element et-name et-tag et-type0 et-option et-refine)) rest-elts)
+  (define-values (unused-frames h)
+    (for/fold ([frames frames] [h (hasheq)]) ([elt (in-list elts)])
+      (match-define (element et-name et-tag et-type0 et-option et-refine) elt)
+      (define (try-skip)
+        (match et-option
+          [(list 'optional) (values frames h)]
+          [(list 'default default) (values frames (hash-set h et-name default))]
+          [#f (error 'DER-decode-value
+                     "missing required field in encoded Sequence\n  field: ~s" et-name)]))
+      (match frames
+        [(cons frame rest-frames)
+         (cond [(tag-matches elt frame)
+                (define et-type (if et-refine (et-refine h) et-type0))
+                (values rest-frames (hash-set h et-name (DER-decode-frame et-type frame)))]
+               [else (try-skip)])]
+        ['() (try-skip)])))
+  (unless (null? unused-frames)
+    (error 'DER-decode-value "leftover components in encoded Sequence"))
+  h)
 
-         ;; current element is missing; try to skip
-         (define (try-skip rest-frames)
-           (match et-option
-             ['(optional)
-              (loop rest-elts rest-frames rlvs)]
-             [(list 'default default-value)
-              (loop rest-elts rest-frames
-                    (cons (list et-name default-value) rlvs))]
-             [#f
-              (error 'DER-decode-value
-                     "missing field in encoded Sequence\n  field: ~s"
-                     et-name)]))
-
-         (match frames
-           [(cons (and frame0 (DER-frame f-tagclass f-p/c f-tagn f-c)) rest-frames)
-            (cond [(tag-matches elt0 frame0)
-                   (define et-type (if et-refine (et-refine rlvs) et-type0))
-                   (loop rest-elts rest-frames
-                         (cons (list et-name (DER-decode-frame et-type frame0)) rlvs))]
-                  [else (try-skip rest-frames)])]
-           ['()
-            (try-skip '())])]
-        ['()
-         (if (null? frames)
-             (reverse rlvs)
-             (error 'DER-decode-value
-                    "leftover components in encoded Sequence"))]))))
-
-;; DER-decode-set* : (listof ElementType) (listof Frame)
-;;                -> (cons 'set (listof (list Symbol Any)))
+;; DER-decode-set* : (listof ElementType) (listof Frame) -> Hasheq[Symbol => Any]
 (define (DER-decode-set* elts frames)
-  (cons 'set
-    (let loop ([elts elts] [frames frames])
-      (match elts
-        [(cons (and elt0 (element et-name _ et-type et-option _)) rest-elts)
-         (cond [(for/first ([frame (in-list frames)]
-                            #:when (tag-matches elt0 frame))
-                  frame)
-                => (lambda (frame0)
-                     (cons (list et-name (DER-decode-frame et-type frame0))
-                           (loop rest-elts (remq frame0 frames))))]
-               [else
-                ;; current element is missing; try to skip
-                (match et-option
-                  ['(optional)
-                   (loop rest-elts frames)]
-                  [(list 'default default-value)
-                   (cons (list et-name default-value)
-                         (loop rest-elts frames))]
-                  [#f
-                   (error 'DER-decode-value
-                          "missing field in encoded Set\n  field: ~s" et-name)])])]
-        ['()
-         (if (null? frames)
-             null
-             (error 'DER-decode-value
-                    "leftover components in encoded Set"))]))))
+  (define-values (unused-frames h)
+    (for/fold ([frames frames] [h (hasheq)]) ([elt (in-list elts)])
+      (match-define (element et-name _ et-type et-option _) elt)
+      (cond [(for/first ([frame (in-list frames)] #:when (tag-matches elt frame)) frame)
+             => (lambda (frame)
+                  (values (remq frame frames)
+                          (hash-set h et-name (DER-decode-frame et-type frame))))]
+            [else ;; current element is missing; try to skip
+             (match et-option
+               [(list 'optional)
+                (values frames h)]
+               [(list 'default default)
+                (values frames (hash-set h et-name default))]
+               [#f (error 'DER-decode-value
+                          "missing required field in encoded Set\n  field: ~s" et-name)])])))
+  (unless (null? unused-frames)
+    (error 'DER-decode-value "leftover components in encoded Set"))
+  h)
 
 (define (check-sorted what frames)
   ;; Set/SetOf elements must be sorted

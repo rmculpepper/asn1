@@ -173,8 +173,8 @@
    [(wrap-refine (name ...) #f)
     #'#f]
    [(wrap-refine (name ...) type)
-    #'(lambda (lvs)
-        (let ([name (cond [(assq 'name lvs) => cadr] [else #f])] ...)
+    #'(lambda (h)
+        (let ([name (hash-ref h 'name #f)] ...)
           type))]))
 
 (define-syntax Set

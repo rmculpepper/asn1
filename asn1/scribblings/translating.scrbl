@@ -20,15 +20,15 @@ examples of a few ASN.1 modules from internet standards translated to
 use this library. Use
 @racketblock[(collection-path "asn1" "examples")] 
 to locate the local directory containing the examples, or
-@hyperlink["https://github.com/rmculpepper/asn1/tree/master/asn1-lib/asn1/examples/"]{view
+@hyperlink["https://github.com/rmculpepper/asn1/tree/master/asn1/examples/"]{view
 them online}.
 
 @section[#:tag "handling-defs"]{Translating ASN.1 Definition Order}
 
 In ASN.1 modules, definition order doesn't matter, and ASN.1 code
-often takes advantage of this by ordering definitions top-down. When
-the ASN.1 module is translated to Racket, the definitions must be
-reordered.
+often takes advantage of this by ordering definitions
+top-down. Translating the ASN.1 module to Racket may require
+reordering the definitions.
 
 For complex modules, it can be difficult to find a legal ordering that
 also preserves relatedness. In such cases, it may be better to split

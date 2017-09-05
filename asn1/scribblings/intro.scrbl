@@ -48,8 +48,8 @@ ASN.1 type for a sequence of integers:
 
 @interaction[#:eval the-eval
 (define Integers (SequenceOf INTEGER))
-(DER-encode Integers '(sequence-of 1 2 3 -1000))
-(DER-decode Integers (DER-encode Integers '(sequence-of 1 2 3 -1000)))
+(DER-encode Integers '(1 2 3 -1000))
+(DER-decode Integers (DER-encode Integers '(1 2 3 -1000)))
 ]
 
 Unlike @racket[SequenceOf], @racket[Sequence] and @racket[Choice] take
@@ -60,7 +60,7 @@ Here is an ASN.1 type representing a three-dimensional point:
 
 @interaction[#:eval the-eval
 (define Point (Sequence [x INTEGER] [y INTEGER] [z INTEGER]))
-(DER-encode Point '(sequence [x 123] [y 456] [z 789]))
+(DER-encode Point (hasheq 'x 123 'y 456 'z 789))
 ]
 
 And here's one representing a reference to a person:
@@ -99,7 +99,7 @@ those are part of the type, not the encoding. Sequences are decoded as
 if they were @racket[(SequenceOf ANY)].
 
 @interaction[#:eval the-eval
-(DER-decode ANY (DER-encode Point '(sequence [x 123] [y 456] [z 789])))
+(DER-decode ANY (DER-encode Point (hasheq 'x 123 'y 456 'z 789)))
 (DER-decode ANY (DER-encode Person '(name "Jean")))
 ]
 

@@ -138,8 +138,8 @@ the example discussed in the @racket[Wrap] form documentation:
   (parameterize ((DER-encode-hooks
                   (list (list INTEGER 'encode (lambda (b) b)))))
     (DER-encode (Sequence [r INTEGER] [s INTEGER])
-                '(sequence [r #"}nSi|-uy"]
-                           [s #"y\21~P#3\37\b"]))))
+                (hasheq 'r #"}nSi|-uy"
+                        's #"y\21~P#3\37\b"))))
 sig
 (DER-decode (Sequence [r INTEGER] [s INTEGER]) sig)
 ]
