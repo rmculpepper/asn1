@@ -212,7 +212,7 @@
               (error 'DER-encode-value
                      "missing required field in ~s value\n  field: ~s\n  value: ~e"
                      kind name h)]
-             [else (DER-encode type** value)])])))
+             [else (DER-encode type** value tag*)])])))
 
 (define none (gensym))
 

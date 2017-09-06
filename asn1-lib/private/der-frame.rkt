@@ -186,3 +186,17 @@
            (let* ([ll (- l 128)]
                   [lbs (read-bytes ll in)])
              (base256->unsigned lbs))])))
+
+;; ----
+
+(define (bytes->DER-tree buf)
+  (frame->tree (bytes->DER-frame buf)))
+
+(define (frame->tree f)
+  (cond [(eq? (DER-frame-tagkind f) 'constructed)
+         (define fs (read-frames (open-input-bytes (DER-frame-value f))))
+         (DER-frame (DER-frame-tagclass f) (DER-frame-tagkind f) (DER-frame-tagnum f)
+                    (map frame->tree fs))]
+        [else f]))
+
+(provide bytes->DER-tree)
