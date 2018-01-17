@@ -170,7 +170,7 @@
      (unless (ascii-string? v) (bad-value 'ascii-string?))
      (string->bytes/latin-1 v)]
     ;; UTCTime
-    [else (error 'BER-encode-value "unsupported base type\n  type: ~s" base-type)]))
+    [else (error 'BER-encode-base "internal error: unsupported base type\n  type: ~s" base-type)]))
 
 (define none (gensym))
 
@@ -301,7 +301,7 @@
        (begin (check-tag want-tag) (unless (list? c) (error/need-cons)))
        (match c
          [(list c-frame) (decode-frame type* c-frame #t)]
-         [_ (BER-error "expected single frame decoding explicitly tagged type"
+         [_ (BER-error "expected single frame for explicitly tagged contents"
                        "\n  type: ~e\n  frames: ~s" type (length c))])]
       [(asn1-type:wrap type* _ post-decode)
        (if post-decode
@@ -320,7 +320,7 @@
           (match ct-option
             [(list 'optional) (values frames h)]
             [(list 'default default) (values frames (hash-set h ct-name default))]
-            [#f (BER-error "missing required field in encoded Sequence"
+            [#f (BER-error "missing required field in encoded SEQUENCE"
                            "\n  type: ~e\n  field: ~s" type ct-name)]))
         (match frames
           [(cons (and frame (BER-frame tag _)) rest-frames)
@@ -332,7 +332,7 @@
                  [else (try-skip)])]
           ['() (try-skip)])))
     (unless (null? unused-frames)
-      (BER-error "leftover components in encoded Sequence" "\n  type: ~e" type))
+      (BER-error "leftover components in encoded SEQUENCE" "\n  type: ~e" type))
     h)
 
   ;; decode-set : (Listof Component) (Listof Frame) Type -> Hasheq[Symbol => Any]
@@ -353,10 +353,10 @@
                   (values frames h)]
                  [(list 'default default)
                   (values frames (hash-set h ct-name default))]
-                 [#f (BER-error "missing required field in encoded Set"
+                 [#f (BER-error "missing required field in encoded SET"
                                 "\n  type: ~e\n  field: ~s" type ct-name)])])))
     (unless (null? unused-frames)
-      (BER-error "leftover components in encoded Set" "\n  type: ~e" type))
+      (BER-error "leftover components in encoded SET" "\n  type: ~e" type))
     h)
 
   ;; check-explicit-default : Symbol MaybeOption Any Type -> Void or (error)

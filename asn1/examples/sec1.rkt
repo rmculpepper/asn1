@@ -139,32 +139,32 @@
 ;; EXPLICIT TAGS
 
 (define (FieldID typemap)
-  (Sequence [fieldType OBJECT-IDENTIFIER]
+  (SEQUENCE [fieldType OBJECT-IDENTIFIER]
             [parameters #:dependent (get-type fieldType typemap)]))
 
 (define Prime-p INTEGER) ;; -- Field of size p.
 
 (define Characteristic-two
-  (Sequence [m INTEGER] ;; -- Field size 2m
+  (SEQUENCE [m INTEGER] ;; -- Field size 2m
             [basis OBJECT-IDENTIFIER]
             [parameters #:dependent (get-type basis BasisTypes)]))
 
 (define Trinomial INTEGER)
 
 (define Pentanomial
-  (Sequence [k1 INTEGER]   ;; -- k1 > 0
+  (SEQUENCE [k1 INTEGER]   ;; -- k1 > 0
             [k2 INTEGER]   ;; -- k2 > k1
             [k3 INTEGER])) ;; -- k3 > k2
 
 (define FieldElement OCTET-STRING)
 
 (define (ECDomainParameters IOSet) ;; IOSet : ECDOMAIN
-  (Choice [specified SpecifiedECDomain]
+  (CHOICE [specified SpecifiedECDomain]
           [named OBJECT-IDENTIFIER] ;; ECDOMAIN.&id({IOSet})
           [implicitCA NULL]))
 
 (define-asn1-type SpecifiedECDomain
-  (Sequence [version SpecifiedECDomainVersion]
+  (SEQUENCE [version SpecifiedECDomainVersion]
             [fieldID (FieldID FieldTypes)]
             [curve Curve]
             [base ECPoint]
@@ -178,7 +178,7 @@
 (define ecdpVer3 3)
 
 (define Curve
-  (Sequence [a FieldElement]
+  (SEQUENCE [a FieldElement]
             [b FieldElement]
             ;; -- Shall be present if used in SpecifiedECDomain
             ;; -- with version equal to ecdpVer2 or ecdpVer3
@@ -189,12 +189,12 @@
 ;; ----------------------------------------
 
 (define-asn1-type SubjectPublicKeyInfo
-  (Sequence [algorithm (AlgorithmIdentifier ECPKAlgorithms)]
+  (SEQUENCE [algorithm (AlgorithmIdentifier ECPKAlgorithms)]
             ;;   (WITH COMPONENTS {algorithm, parameters})
             [subjectPublicKey BIT-STRING]))
 
 (define-asn1-type ECPrivateKey
-  (Sequence [version INTEGER] ;; (ecPrivkeyVer1)
+  (SEQUENCE [version INTEGER] ;; (ecPrivkeyVer1)
             [privateKey OCTET-STRING]
             [parameters #:explicit 0 (ECDomainParameters SECGCurveNames) #:optional]
             [publicKey  #:explicit 1 BIT-STRING #:optional]))
@@ -202,40 +202,40 @@
 (define ecPrivkeyVer1 1)
 
 (define (AlgorithmIdentifier typemap)
-  (Sequence [algorithm OBJECT-IDENTIFIER]
+  (SEQUENCE [algorithm OBJECT-IDENTIFIER]
             [parameters #:dependent (get-type algorithm typemap) #:optional]))
 
 (define-asn1-type HashAlgorithm (AlgorithmIdentifier HashFunctions))
 
 (define-asn1-type ECCAlgorithm (AlgorithmIdentifier ECCAlgorithmSet))
-(define ECCAlgorithms (SequenceOf ECCAlgorithm))
+(define ECCAlgorithms (SEQUENCE-OF ECCAlgorithm))
 
 (define-asn1-type ECPKRestrictions
-  (Sequence [ecDomain (ECDomainParameters SECGCurveNames)]
+  (SEQUENCE [ecDomain (ECDomainParameters SECGCurveNames)]
             [eccAlgorithms ECCAlgorithms]))
 
 (define NamedMultiples
-  (Sequence [multiples OBJECT-IDENTIFIER]
-            [points (SequenceOf ECPoint)]))
+  (SEQUENCE [multiples OBJECT-IDENTIFIER]
+            [points (SEQUENCE-OF ECPoint)]))
 
 (define SpecifiedMultiples
-  (SequenceOf
-   (Sequence [multiple INTEGER]
+  (SEQUENCE-OF
+   (SEQUENCE [multiple INTEGER]
              [point ECPoint])))
 
 (define ECCSupplements
-  (Choice [namedMultiples     #:explicit 0  NamedMultiples]
+  (CHOICE [namedMultiples     #:explicit 0  NamedMultiples]
           [specifiedMultiples #:explicit 1  SpecifiedMultiples]))
 
 (define-asn1-type ECPKSupplements
-  (Sequence [ecDomain (ECDomainParameters SECGCurveNames)]
+  (SEQUENCE [ecDomain (ECDomainParameters SECGCurveNames)]
             [eccAlgorithms ECCAlgorithms]
             [eccSupplements ECCSupplements]))
 
 ;; ----
 
 (define-asn1-type ECIESParameters
-  (Sequence [kdf #:explicit 0 KeyDerivationFunction #:optional]
+  (SEQUENCE [kdf #:explicit 0 KeyDerivationFunction #:optional]
             [sym #:explicit 1 SymmetricEncryption #:optional]
             [mac #:explicit 2 MessageAuthenticationCode #:optional]))
 
@@ -244,40 +244,40 @@
 (define-asn1-type MessageAuthenticationCode (AlgorithmIdentifier MACSet))
 
 (define-asn1-type ECWKTParameters
-  (Sequence [kdf  #:explicit 0 KeyDerivationFunction #:optional]
+  (SEQUENCE [kdf  #:explicit 0 KeyDerivationFunction #:optional]
             [wrap #:explicit 1 KeyWrapFunction #:optional]))
 
 (define-asn1-type KeyWrapFunction (AlgorithmIdentifier KeyWrapSet))
 
 (define-asn1-type ECDSA-Signature
-  (Choice [two-ints-plus ECDSA-Sig-Value]
+  (CHOICE [two-ints-plus ECDSA-Sig-Value]
           [point-int #:explicit 0 ECDSA-Full-R]))
 
 (define ECDSA-Sig-Value
-  (Sequence [r INTEGER]
+  (SEQUENCE [r INTEGER]
             [s INTEGER]
             [a INTEGER #:optional]
-            [y (Choice [b BOOLEAN] [f FieldElement]) #:optional]))
+            [y (CHOICE [b BOOLEAN] [f FieldElement]) #:optional]))
 
 (define ECDSA-Full-R
-  (Sequence [r ECPoint]
+  (SEQUENCE [r ECPoint]
             [s INTEGER]))
 
 (define ECIES-Ciphertext-Value
-  (Sequence [ephemeralPublicKey ECPoint]
+  (SEQUENCE [ephemeralPublicKey ECPoint]
             [symmetricCiphertext OCTET-STRING]
             [macTag OCTET-STRING]))
 
 #|
 (define ASN1SharedInfo
-  (Sequence [keyInfo (AlgorithmIdentifier ???)]
+  (SEQUENCE [keyInfo (AlgorithmIdentifier ???)]
             [entityUInfo  #:explicit 0 OCTET-STRING #:optional]
             [entityVInfo  #:explicit 1 OCTET-STRING #:optional]
             [suppPubInfo  #:explicit 2 OCTET-STRING #:optional]
             [suppPrivInfo #:explicit 3 OCTET-STRING #:optional]))
 
 (define SEC1-PDU
-  (Choice [privateKey #:explicit 0 ECPrivateKey]
+  (CHOICE [privateKey #:explicit 0 ECPrivateKey]
           [spki       #:explicit 1 SubjectPublicKeyInfo]
           [ecdsa      #:explicit 2 ECDSA-Signature]
           [ecies      #:explicit 3 ECIES-Ciphertext-Value]

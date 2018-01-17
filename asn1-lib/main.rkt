@@ -19,21 +19,23 @@
          racket/contract
          racket/promise
          racket/match
+         binaryio/bytes
          "private/base.rkt"
          "private/types.rkt"
          "private/ber.rkt"
          "private/ber-frame.rkt")
-(provide Sequence
-         Set
-         Choice
-         Tag
-         Delay
+
+(provide SEQUENCE
+         SET
+         CHOICE
+         TAG
+         DELAY
          (contract-out
-          [SequenceOf
+          [SEQUENCE-OF
            (-> asn1-type? asn1-type?)]
-          [SetOf
+          [SET-OF
            (-> asn1-type? asn1-type?)]
-          [Wrap
+          [WRAP
            (->* [asn1-type?]
                 [#:pre-encode (-> any/c any/c)
                  #:encode (-> any/c bytes?)
@@ -61,36 +63,21 @@
 
          define-asn1-type
 
+         (contract-out
+          [read-asn1  (->* [asn1-type?] [input-port? #:rules rules/c] any)]
+          [write-asn1 (->* [asn1-type? any/c] [output-port? #:rules rules/c] void?)]
+          [bytes->asn1 (->* [asn1-type? bytes?] [#:rules rules/c] any)]
+          [asn1->bytes (->* [asn1-type? any/c] [#:rules rules/c] bytes?)])
+
          ;; private/base-types.rkt
          printable-string?
          ascii-string?
 
          (contract-out
           ;; private/base-types.rkt
-          [struct bit-string ([bytes bytes?] [unused (integer-in 0 7)])]
+          [struct bit-string ([bytes bytes?] [unused (integer-in 0 7)])]))
 
-          ;; private/ber.rkt
-          [BER-encode (->* [asn1-type? any/c] [#:der? any/c] BER-frame?)]
-          [BER-decode (->* [asn1-type? BER-frame?] [#:der? any/c] any/c)]
-
-          #|
-          [read-asn1  (->* [asn1-type?] [input-port? #:der? any/c] any)]
-          [write-asn1 (->* [asn1-type? any/c] [output-port? #:der? any/c] void?)]
-
-          [bytes->asn1 (->* [bytes?] [#:der? any/c] any)]
-          [asn1->bytes (->* [any/c] [#:der? any/c] bytes?)]
-          |#
-
-          ;; private/ber-frame.rkt
-          [struct BER-frame
-                  ([tag exact-nonnegative-integer?]
-                   [content (or/c bytes? (listof (or/c bytes? BER-frame?)))])]
-          [read-BER-frame
-           (->* [] [input-port? #:der? any/c #:limit (or/c exact-nonnegative-integer? +inf.0)]
-                BER-frame?)]
-          [write-BER-frame
-           (->* [BER-frame?] [output-port? #:der? any/c] void?)]
-          ))
+(define rules/c (or/c 'BER 'DER))
 
 ;; ============================================================
 
@@ -132,80 +119,80 @@
             [(null? lst)
              null]))))
 
-(define-syntax (Sequence stx)
+(define-syntax (SEQUENCE stx)
   (define-syntax-class sequence-component
     #:attributes (name type0 option dep)
     (pattern [name:id t:tag-clause type :option-clause]
              #:declare type (expr/c #'asn1-type?)
-             #:with type0 #'(type-add-tag 'Sequence type.c 't.mode t.e)
+             #:with type0 #'(type-add-tag 'SEQUENCE type.c 't.mode t.e)
              #:with dep #'#f)
     (pattern [name:id t:tag-clause #:dependent type :option-clause]
              #:declare type (expr/c #'asn1-type?)
-             #:with type0 #'(type-add-tag 'Sequence ANY 't.mode t.e)
-             #:with dep #'(type-add-tag 'Sequence type.c 't.mode t.e)))
+             #:with type0 #'(type-add-tag 'SEQUENCE ANY 't.mode t.e)
+             #:with dep #'(type-add-tag 'SEQUENCE type.c 't.mode t.e)))
   (define (wrap-refine names dep)
     (syntax-parse dep
       [#f #f]
       [dep (with-syntax ([(name ...) names])
              #'(lambda (h) (let ([name (hash-ref h 'name #f)] ...) dep)))]))
   (syntax-parse stx
-    [(Sequence c:sequence-component ...)
+    [(SEQUENCE c:sequence-component ...)
      #`(asn1-type:sequence
         (check-sequence-components
-         'Sequence
+         'SEQUENCE
          (map component-add-refine
               (list (make-component 'c.name c.type0 c.option) ...)
               (list #,@(for/list ([prefix-names (in-rprefixes (syntax->list #'(c.name ...)))]
                                   [c-dep (syntax->list #'(c.dep ...))])
                          (wrap-refine prefix-names c-dep))))))]))
 
-(define-syntax (Set stx)
+(define-syntax (SET stx)
   (define-syntax-class set-component
     #:attributes (name e)
     (pattern [name:id t:tag-clause type :option-clause]
              #:declare type (expr/c #'asn1-type?)
              #:with e #'(make-component 'name (type-add-tag 'Set type.c 't.mode t.e) option)))
   (syntax-parse stx
-    [(Set c:set-component ...)
-     #'(asn1-type:set (check-set-components (list c.e ...)))]))
+    [(SET c:set-component ...)
+     #'(asn1-type:set (check-set-components 'SET (list c.e ...)))]))
 
-(define-syntax (Choice stx)
+(define-syntax (CHOICE stx)
   (define-syntax-class variant
     (pattern [name:id t:tag-clause type]
              #:declare type (expr/c #'asn1-type?)
-             #:with e #'(make-variant 'name (type-add-tag 'Choice type.c 't.mode t.e))))
+             #:with e #'(make-variant 'name (type-add-tag 'CHOICE type.c 't.mode t.e))))
   (syntax-parse stx
-    [(Choice v:variant ...)
-     #'(asn1-type:choice (check-choice-variants (list v.e ...)))]))
+    [(CHOICE v:variant ...)
+     #'(asn1-type:choice (check-choice-variants 'CHOICE (list v.e ...)))]))
 
-(define-syntax Tag
+(define-syntax TAG
   (syntax-parser
-    [(Tag #:explicit t:tag type)
+    [(TAG #:explicit t:tag type)
      #:declare type (expr/c #'asn1-type?)
-     #'(type-add-tag 'Tag type.c 'explicit t.e)]
-    [(Tag #:implicit t:tag type)
+     #'(type-add-tag 'TAG type.c 'explicit t.e)]
+    [(TAG #:implicit t:tag type)
      #:declare type (expr/c #'asn1-type?)
-     #'(type-add-tag 'Tag type.c 'implicit t.e)]))
+     #'(type-add-tag 'TAG type.c 'implicit t.e)]))
 
-(define-syntax Delay
+(define-syntax DELAY
   (syntax-parser
-    [(Delay type)
+    [(DELAY type)
      #:declare type (expr/c #'asn1-type?)
      #'(asn1-type:delay (delay type))]))
 
-(define (SequenceOf type)
+(define (SEQUENCE-OF type)
   (asn1-type:sequence-of type))
 
-(define (SetOf type)
+(define (SET-OF type)
   (asn1-type:set-of type))
 
-(define (Wrap type
+(define (WRAP type
               #:pre-encode [pre-encode-f #f]
               #:encode [encode-f #f]
               #:decode [decode-f #f]
               #:post-decode [post-decode-f #f])
   (define (bad)
-    (error 'Wrap "cannot add encode/decode hook to non-base type\n  type: ~e\n  hook: ~e"
+    (error 'WRAP "cannot add encode/decode hook to non-base type\n  type: ~e\n  hook: ~e"
            type (or encode-f decode-f)))
   (define type*
     (cond [(or encode-f decode-f)
@@ -260,4 +247,34 @@
   (syntax-parser
    [(define-asn1-type name:id type)
     #:declare type (expr/c #'asn1-type?)
-    #'(define name (Delay type.c))]))
+    #'(define name (DELAY type.c))]))
+
+;; ============================================================
+
+(define (read-asn1 type [in (current-input-port)] #:rules [rules 'BER])
+  (with-who 'read-asn1
+    (lambda ()
+      (define der? (eq? rules 'DER))
+      (define f (read-BER-frame in #:der? der?))
+      (BER-decode type f #:der? der?))))
+
+(define (write-asn1 type value [out (current-output-port)] #:rules [rules 'BER])
+  (with-who 'write-asn1
+    (lambda ()
+      (define der? (eq? rules 'DER))
+      (define f (BER-encode type value #:der? der?))
+      (write-BER-frame f out #:der? der?))))
+
+(define (bytes->asn1 type b #:rules [rules 'BER])
+  (with-who 'bytes->asn1
+    (lambda ()
+      (read/exhaust 'bytes->asn1 "ASN1 value"
+                    (lambda (in) (read-asn1 type in #:rules rules))
+                    (open-input-bytes b)))))
+
+(define (asn1->bytes type v #:rules [rules 'BER])
+  (with-who 'asn1->bytes
+    (lambda ()
+      (define out (open-output-bytes))
+      (write-asn1 type v out #:rules rules)
+      (get-output-bytes out))))

@@ -134,7 +134,7 @@
 ;; }
 
 (define (AlgorithmIdentifier typemap)
-  (Sequence [algorithm OBJECT-IDENTIFIER]
+  (SEQUENCE [algorithm OBJECT-IDENTIFIER]
             [parameters #:dependent (get-type algorithm typemap) #:optional]))
 
 ;; ==============
@@ -207,8 +207,8 @@
          (list sha256WithRSAEncryption    NULL)
          (list sha384WithRSAEncryption    NULL)
          (list sha512WithRSAEncryption    NULL)
-         (list id-RSAES-OAEP              (Delay RSAES-OAEP-params))
-         (list id-RSASSA-PSS              (Delay RSASSA-PSS-params))
+         (list id-RSAES-OAEP              (DELAY RSAES-OAEP-params))
+         (list id-RSASSA-PSS              (DELAY RSASSA-PSS-params))
          PKCS1PSourceAlgorithms))
 
 ;; ===================
@@ -216,13 +216,13 @@
 ;; ===================
 
 (define-asn1-type RSAPublicKey
-  (Sequence [modulus           INTEGER]    ;; n
+  (SEQUENCE [modulus           INTEGER]    ;; n
             [publicExponent    INTEGER]))  ;; e
 
 ;; Representation of RSA private key with information for the CRT
 ;; algorithm.
 (define-asn1-type RSAPrivateKey
-  (Sequence [version           Version]
+  (SEQUENCE [version           Version]
             [modulus           INTEGER] ;; n
             [publicExponent    INTEGER] ;; e
             [privateExponent   INTEGER] ;; d
@@ -237,17 +237,17 @@
 ;; two-prime(0), multi(1); version must be multi if otherPrimeInfos present
 
 (define-asn1-type OtherPrimeInfos
-  (SequenceOf OtherPrimeInfo)) ;; SIZE(1..MAX)
+  (SEQUENCE-OF OtherPrimeInfo)) ;; SIZE(1..MAX)
 
 (define OtherPrimeInfo
-  (Sequence [prime             INTEGER] ;; ri
+  (SEQUENCE [prime             INTEGER] ;; ri
             [exponent          INTEGER] ;; di
             [coefficient       INTEGER])) ;; ti
 
 ;; AlgorithmIdentifier.parameters for id-RSAES-OAEP.
 ;; Note that the tags in this Sequence are explicit.
 (define RSAES-OAEP-params
-  (Sequence [hashAlgorithm    #:explicit 0 HashAlgorithm    #:default sha1]
+  (SEQUENCE [hashAlgorithm    #:explicit 0 HashAlgorithm    #:default sha1]
             [maskGenAlgorithm #:explicit 1 MaskGenAlgorithm #:default mgf1SHA1]
             [pSourceAlgorithm #:explicit 2 PSourceAlgorithm #:default pSpecifiedEmpty]))
 
@@ -270,7 +270,7 @@
 ;; AlgorithmIdentifier.parameters for id-RSASSA-PSS.
 ;; Note that the tags in this Sequence are explicit.
 (define-asn1-type RSASSA-PSS-params
-  (Sequence [hashAlgorithm    #:explicit 0  HashAlgorithm    #:default sha1]
+  (SEQUENCE [hashAlgorithm    #:explicit 0  HashAlgorithm    #:default sha1]
             [maskGenAlgorithm #:explicit 1  MaskGenAlgorithm #:default mgf1SHA1]
             [saltLength       #:explicit 2  INTEGER          #:default 20]
             [trailerField     #:explicit 3  TrailerField     #:default trailerFieldBC]))
@@ -297,7 +297,7 @@
 
 ;; Syntax for the EMSA-PKCS1-v1_5 hash identifier.
 (define-asn1-type DigestInfo
-  (Sequence [digestAlgorithm DigestAlgorithm]
+  (SEQUENCE [digestAlgorithm DigestAlgorithm]
             [digest OCTET-STRING]))
 
 (define DigestAlgorithm (AlgorithmIdentifier PKCS1-v1-5DigestAlgorithms))

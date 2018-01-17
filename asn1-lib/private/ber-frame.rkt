@@ -80,9 +80,9 @@
         tagnum0
         (let ([tagnum (read-long-tag in)])
           (unless (> tagnum 30)
-            (BER-error "long tag format used for short tag"
-                       "\n  tag: ~s ~s ~s"
-                       tagclass (if cons? 'constructed 'primitive) tagnum))
+            (BER-error "found long tag form where short form would suffice"
+                       "\n  tag: ~a ~a (~a)"
+                       tagclass tagnum (if cons? 'constructed 'primitive)))
           tagnum)))
   (values (make-tag tagclass tagnum) cons?))
 
@@ -91,7 +91,7 @@
   (let loop ([c 0])
     (let ([next (read-byte in)])
       (cond [(eof-object? next)
-             (error 'read-tag "incomplete tag")]
+             (asn1-error "incomplete tag")]
             [(< next 128)
              (+ next (arithmetic-shift c 7))]
             [else
@@ -133,9 +133,11 @@
      #f]
     [(cons len llen)
      (when (and der? (< len 128))
-       (DER-error "long definite length encoding" "\n  length: ~e" len))
-     (when (and der? (< (integer-bytes-length len) llen))
-       (DER-error "long definite length encoding" "\n  length: ~e\n  octets used: ~e" len llen))
+       (DER-error "found long definite length encoding where short would suffice"
+                  "\n  length: ~e" len))
+     (when (and der? (< (integer-bytes-length len #f) llen))
+       (DER-error "excess bytes used in long definite length encoding"
+                  "\n  length: ~e\n  bytes used: ~e" len llen))
      len]))
 
 ;; read-length* : InputPort -> (U Nat #f (cons Nat Nat))
@@ -286,21 +288,6 @@
     (define next (read-BER in der? limitb))
     (cond [(nil-frame? next) (reverse acc)]
           [else (loop (cons next acc))])))
-
-;; ----------------------------------------
-
-;; BER-frame->bytes : DER-Frame -> Bytes
-(define (BER-frame->bytes frame [der? #f])
-  (let ([out (open-output-bytes)])
-    (write-BER-frame/definite frame out)
-    (get-output-bytes out)))
-
-;; bytes->BER-frame : Bytes [Boolean] -> BER-Frame
-(define (bytes->BER-frame ber [der? #f])
-  (define in (open-input-bytes ber))
-  (begin0 (read-BER-frame in der?)
-    (unless (eof-object? (peek-char in))
-      (BER-error "bytes left over after one TLV frame"))))
 
 ;; ----------------------------------------
 

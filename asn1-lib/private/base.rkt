@@ -25,22 +25,20 @@
 
 (define (asn1-who) (or (continuation-mark-set-first #f asn1-who-key) 'asn1:???))
 
-(define (call/who who proc)
+(define (with-who who proc)
   (if (continuation-mark-set-first #f asn1-who-key)
       (proc)
       (with-continuation-mark asn1-who-key who (proc))))
 
 (define (asn1-error fmt . args) (apply error (asn1-who) fmt args))
 
-(define (BER-error prefix [fmt ""] . args)
-  (error (asn1-who) "~a;\n ~a~a" prefix
-         "violation of the Basic Encoding Rules (BER)"
-         (apply format fmt args)))
+(define (BER-error message [fmt ""] . args)
+  (error (asn1-who) "violation of the Basic Encoding Rules (BER);\n ~a~a"
+         message (apply format fmt args)))
 
-(define (DER-error prefix [fmt ""] . args)
-  (error (asn1-who) "~a;\n ~a~a" prefix
-         "violation of the Distinguished Encoding Rules (DER)"
-         (apply format fmt args)))
+(define (DER-error message [fmt ""] . args)
+  (error (asn1-who) "violation of the Distinguished Encoding Rules (DER);\n ~a~a"
+         message (apply format fmt args)))
 
 
 ;; ============================================================
