@@ -29,8 +29,7 @@
 
 ;; Type is one of
 ;; - (asn1-type:any)
-;; - (asn1-type:base Symbol Tag Encode Decode)
-;;     where Encode, Decode are #f or (FrameContents <--> Any)
+;; - (asn1-type:base Symbol)
 ;; - (asn1-type:sequence (list Component ...))
 ;; - (asn1-type:sequence-of Type)
 ;; - (asn1-type:set (list Component ...))
@@ -42,7 +41,7 @@
 ;; - (asn1-type:delay (promiseof Type))
 (struct asn1-type () #:transparent)
 (struct asn1-type:any asn1-type () #:transparent)
-(struct asn1-type:base asn1-type (name tag encode decode) #:transparent)
+(struct asn1-type:base asn1-type (name) #:transparent)
 (struct asn1-type:sequence asn1-type (components) #:transparent)
 (struct asn1-type:sequence-of asn1-type (elt) #:transparent)
 (struct asn1-type:set asn1-type (components) #:transparent)
@@ -56,7 +55,7 @@
 ;; ----------------------------------------
 
 (define (make-base-type base-type)
-  (asn1-type:base base-type (base-type-tag base-type) #f #f))
+  (asn1-type:base base-type))
 
 ;; ----------------------------------------
 
@@ -163,7 +162,7 @@
 (define (type->tags t)
   (match t
     [(asn1-type:any) (list #f)]
-    [(asn1-type:base name tag _enc _dec) (list tag)]
+    [(asn1-type:base name) (list (base-type-tag name))]
     [(asn1-type:sequence _) (list (base-type-tag 'SEQUENCE))]
     [(asn1-type:sequence-of _) (list (base-type-tag 'SEQUENCE))]
     [(asn1-type:set _) (list (base-type-tag 'SET))]

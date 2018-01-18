@@ -68,9 +68,9 @@
        ;; Note: alt-tag must be #f; can't implicitly tag an ANY value
        (unless (BER-frame? v) (encode-bad 'ANY v 'BER-frame?))
        v]
-      [(asn1-type:base base-type tag encode _)
-       (let ([c (if encode (encode v) (BER-encode-base base-type v))])
-         (frame tag c alt-tag))]
+      [(asn1-type:base base-type)
+       (let ([c (BER-encode-base base-type v)])
+         (frame base-type c alt-tag))]
       [(asn1-type:sequence cts)
        (unless (and (hash? v) (for/and ([key (in-hash-keys v)]) (symbol? key)))
          (encode-bad type v '(hash/c symbol? any/c)))
@@ -163,7 +163,7 @@
      (signed->base256 v)]
     ;; Sequence[Of], Set[Of]
     [(PrintableString)
-     (unless (printable-string? v) (bad-value 'printable-string?))
+     (unless (asn1-printable-string? v) (bad-value 'asn1-printable-string?))
      (string->bytes/latin-1 v)]
     ;; T61String
     [(IA5String)
@@ -270,9 +270,9 @@
     (match type
       [(asn1-type:any)
        frame]
-      [(asn1-type:base base-type tag _ decode)
-       (begin (check-tag tag) (check-cons? base-type))
-       (if decode (decode c) (BER-decode-base base-type c der?))]
+      [(asn1-type:base base-type)
+       (begin (check-tag (base-type-tag base-type)) (check-cons? base-type))
+       (BER-decode-base base-type c der?)]
       [(asn1-type:sequence components)
        (begin (check-tag (base-type-tag 'SEQUENCE)) (unless (list? c) (error/need-cons)))
        (decode-sequence components c type)]
@@ -497,7 +497,7 @@
 ;; decode-printable-string : Bytes -> Printable-String
 (define (decode-printable-string bs)
   (let ([s (bytes->string/latin-1 bs)])
-    (unless (printable-string? s) (decode-bad 'PrintableString bs))
+    (unless (asn1-printable-string? s) (decode-bad 'PrintableString bs))
     s))
 
 (define (decode-utf8-string b)

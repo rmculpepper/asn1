@@ -1,4 +1,4 @@
-;; Copyright 2014-2017 Ryan Culpepper
+;; Copyright 2014-2018 Ryan Culpepper
 ;; 
 ;; This library is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU Lesser General Public License as published
@@ -37,11 +37,22 @@
            (-> asn1-type? asn1-type?)]
           [WRAP
            (->* [asn1-type?]
-                [#:pre-encode (-> any/c any/c)
-                 #:encode (-> any/c bytes?)
-                 #:decode (-> bytes? any/c)
-                 #:post-decode (-> any/c any/c)]
+                [#:encode (-> any/c any/c)
+                 #:decode (-> any/c any/c)]
                 asn1-type?)])
+
+         define-asn1-type
+
+         (contract-out
+          [read-asn1  (->* [asn1-type?] [input-port? #:rules rules/c] any)]
+          [write-asn1 (->* [asn1-type? any/c] [output-port? #:rules rules/c] void?)]
+          [bytes->asn1 (->* [asn1-type? bytes?] [#:rules rules/c] any)]
+          [asn1->bytes (->* [asn1-type? any/c] [#:rules rules/c] bytes?)]
+
+          [read-asn1/DER  (->* [asn1-type?] [input-port?] any)]
+          [write-asn1/DER (->* [asn1-type? any/c] [output-port?] void?)]
+          [bytes->asn1/DER (-> asn1-type? bytes? any)]
+          [asn1->bytes/DER (-> asn1-type? any/c bytes?)])
 
          ;; private/types.rkt
          asn1-type?
@@ -61,20 +72,10 @@
          OID
          build-OID
 
-         define-asn1-type
-
-         (contract-out
-          [read-asn1  (->* [asn1-type?] [input-port? #:rules rules/c] any)]
-          [write-asn1 (->* [asn1-type? any/c] [output-port? #:rules rules/c] void?)]
-          [bytes->asn1 (->* [asn1-type? bytes?] [#:rules rules/c] any)]
-          [asn1->bytes (->* [asn1-type? any/c] [#:rules rules/c] bytes?)])
-
-         ;; private/base-types.rkt
-         printable-string?
+         ;; private/base.rkt
+         asn1-printable-string?
          ascii-string?
-
          (contract-out
-          ;; private/base-types.rkt
           [struct bit-string ([bytes bytes?] [unused (integer-in 0 7)])]))
 
 (define rules/c (or/c 'BER 'DER))
@@ -187,24 +188,9 @@
   (asn1-type:set-of type))
 
 (define (WRAP type
-              #:pre-encode [pre-encode-f #f]
               #:encode [encode-f #f]
-              #:decode [decode-f #f]
-              #:post-decode [post-decode-f #f])
-  (define (bad)
-    (error 'WRAP "cannot add encode/decode hook to non-base type\n  type: ~e\n  hook: ~e"
-           type (or encode-f decode-f)))
-  (define type*
-    (cond [(or encode-f decode-f)
-           (let loop ([type type])
-             (match type
-               [(asn1-type:base name tag encode0 decode0)
-                (asn1-type:base name tag (or encode-f encode0) (or decode-f decode0))]
-               [(asn1-type:implicit-tag tag type)
-                (asn1-type:implicit-tag tag (loop type))]
-               [_ (bad)]))]
-          [else type]))
-  (asn1-type:wrap type* pre-encode-f post-decode-f))
+              #:decode [decode-f #f])
+  (asn1-type:wrap type encode-f decode-f))
 
 ;; ============================================================
 
@@ -251,30 +237,38 @@
 
 ;; ============================================================
 
-(define (read-asn1 type [in (current-input-port)] #:rules [rules 'BER])
-  (with-who 'read-asn1
+(define (read-asn1 type [in (current-input-port)]
+                   #:rules [rules 'BER] #:who [who 'read-asn1])
+  (with-who who
     (lambda ()
-      (define der? (eq? rules 'DER))
-      (define f (read-BER-frame in #:der? der?))
-      (BER-decode type f #:der? der?))))
+      (let ([der? (eq? rules 'DER)])
+        (BER-decode type (read-BER-frame in #:der? der?) #:der? der?)))))
+(define (write-asn1 type value [out (current-output-port)]
+                    #:rules [rules 'BER] #:who [who 'write-asn1])
+  (with-who who
+    (lambda ()
+      (let ([der? (eq? rules 'DER)])
+        (write-BER-frame (BER-encode type value #:der? der?) out #:der? der?)))))
 
-(define (write-asn1 type value [out (current-output-port)] #:rules [rules 'BER])
-  (with-who 'write-asn1
+(define (bytes->asn1 type b #:rules [rules 'BER] #:who [who 'bytes->asn1])
+  (with-who who
     (lambda ()
-      (define der? (eq? rules 'DER))
-      (define f (BER-encode type value #:der? der?))
-      (write-BER-frame f out #:der? der?))))
-
-(define (bytes->asn1 type b #:rules [rules 'BER])
-  (with-who 'bytes->asn1
-    (lambda ()
-      (read/exhaust 'bytes->asn1 "ASN1 value"
+      (read/exhaust who "ASN1 value"
                     (lambda (in) (read-asn1 type in #:rules rules))
                     (open-input-bytes b)))))
 
-(define (asn1->bytes type v #:rules [rules 'BER])
-  (with-who 'asn1->bytes
+(define (asn1->bytes type v #:rules [rules 'BER] #:who [who 'asn1->bytes])
+  (with-who who
     (lambda ()
       (define out (open-output-bytes))
       (write-asn1 type v out #:rules rules)
       (get-output-bytes out))))
+
+(define (read-asn1/DER type [in (current-input-port)])
+  (read-asn1 type in #:rules 'DER #:who 'read-asn1/DER))
+(define (write-asn1/DER type value [out (current-output-port)])
+  (write-asn1 type value out #:rules 'DER #:who 'write-asn1/DER))
+(define (bytes->asn1/DER type b)
+  (bytes->asn1 type b #:rules 'DER #:who 'bytes->asn1/DER))
+(define (asn1->bytes/DER type v)
+  (asn1->bytes type v #:rules 'DER #:who 'asn1->bytes/DER))

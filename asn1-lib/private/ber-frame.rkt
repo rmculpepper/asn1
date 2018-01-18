@@ -15,6 +15,7 @@
 
 #lang racket/base
 (require racket/match
+         racket/struct
          binaryio/integer
          binaryio/bytes
          "base256.rkt"
@@ -143,7 +144,7 @@
 ;; read-length* : InputPort -> (U Nat #f (cons Nat Nat))
 (define (read-length* in)
   (let ([l (read-byte in)])
-    (cond [(<= 0 l 127) (cons l 1)]
+    (cond [(<= 0 l 127) l]
           [else
            (define ll (- l 128))
            (cond [(zero? ll) #f]
@@ -163,11 +164,22 @@
 ;; A BER-Frame is (BER-frame Tag FrameContents)
 ;; FrameContents = (U Bytes (Listof (U Bytes BER-Frame)))
 ;; The frame is "constructed" if content is a list, "primitive" if bytes.
-(struct BER-frame (tag content) #:transparent)
+(struct BER-frame (tag content)
+  #:property prop:custom-print-quotable 'never
+  #:property prop:custom-write
+  (make-constructor-style-printer
+   (lambda (f) 'BER-frame)
+   (lambda (f)
+     (list (BER-frame-tag-class f)
+           (BER-frame-tag-number f)
+           (BER-frame-content f)))))
+
+(define (BER-frame-tag-class f) (tag-class (BER-frame-tag f)))
+(define (BER-frame-tag-number f) (tag-index (BER-frame-tag f)))
 
 ;; nil-frame? : BER-Frame -> Boolean
 (define (nil-frame? f)
-  (match f [(BER-frame f-tag #"") (equal? f-tag nil-tag)]))
+  (match f [(BER-frame f-tag #"") (equal? f-tag nil-tag)] [_ #f]))
 
 ;; BER-frame/tag{<,<=}? : BER-Frame BER-Frame -> Boolean
 (define (BER-frame/tag<? a b)  (tag<?  (BER-frame-tag a) (BER-frame-tag b)))

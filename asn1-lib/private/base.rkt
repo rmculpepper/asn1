@@ -198,8 +198,8 @@
 (define (ascii-string? s)
   (and (string? s) (regexp-match? #px"^[[:ascii:]]*$" s)))
 
-;; printable-string? : Any -> Boolean
-(define (printable-string? s)
+;; asn1-printable-string? : Any -> Boolean
+(define (asn1-printable-string? s)
   (and (string? s) (regexp-match? #rx"^[-a-zA-Z0-9 '()+,./:=?]*$" s)))
 
 ;; ----------------------------------------
