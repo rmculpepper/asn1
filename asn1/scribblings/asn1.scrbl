@@ -10,8 +10,8 @@
 @defmodule[asn1]
 
 This library provides a notation for defining ASN.1 data types and
-encoding and decoding using the ``distinguished encoding rules''
-(DER).
+support for encoding and decoding ASN.1 values using the Basic and
+Distinguished Encoding Rules (BER and DER).
 
 @(local-table-of-contents)
 
@@ -34,7 +34,7 @@ details.
 
 @include-section["intro.scrbl"]
 @include-section["types.scrbl"]
-@include-section["der.scrbl"]
+@include-section["codec.scrbl"]
 @include-section["translating.scrbl"]
 
 @bibliography[

@@ -23,7 +23,7 @@ otherwise.
          #:contracts ([type-expr asn1-type?])]{
 
 Equivalent to
-@racketblock[(define name-id (Delay type-expr))]
+@racketblock[(define name-id (DELAY type-expr))]
 Useful for defining types with forward references. See also
 @secref["handling-defs"].
 }
@@ -90,10 +90,12 @@ Type of relative object identifiers. Represented by Racket
 Subset of ASCII strings containing only the ``printable'' characters,
 which consist of @litchar{A} to @litchar{Z}, @litchar{a} to
 @litchar{z}, @litchar{0} to @litchar{9}, the space character, and the
-characters in @litchar{'()+,-./:=?}.
+characters in @litchar{'()+,-./:=?}. (Note that some ASCII characters
+normally considered printable, such as @litchar["@"] and @litchar{_}, do
+not fit within ASN.1's notion of printable.)
 
 Represented by Racket strings satisfying the
-@racket[printable-string?] predicate.
+@racket[asn1-printable-string?] predicate.
 }
 
 @defthing[IA5String asn1-type?]{
@@ -113,7 +115,7 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
 
 @section{Structured Types}
 
-@defform[(Sequence component ...)
+@defform[(SEQUENCE component ...)
          #:grammar ([component [name-id maybe-tag component-type maybe-option]
                                [name-id maybe-tag #:dependent component-type maybe-option]]
                     [maybe-tag (code:line)
@@ -128,21 +130,21 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
                                   (code:line #:default default-expr)])
          #:contracts ([component-type asn1-type?])]{
 
-Corresponds to the ASN.1 SEQUENCE type form.
+Corresponds to the ASN.1 @tt{SEQUENCE} type form.
 
 Represented by Racket hashes of the following form:
 @racketblock[(hasheq 'name-id _component-value ... ...)]
 That is, the hash maps component-name symbols to the corresponding
 @racket[component-type] field values.
 
-If a @racket[component] is specified with the @racket[#:dependent]
-keyword, then that @racket[component-type] is not a constant, but is
+If a @racket[component-type] is preceded with the @racket[#:dependent]
+keyword, then that @racket[component-type] is not constant, but is
 instead evaluated with the values of preceding fields in scope each
 time the type is used for encoding or decoding.
 
 @examples[#:eval the-eval
 (define IntOrString
-  (Sequence [type-id INTEGER]
+  (SEQUENCE [type-id INTEGER]
             [value #:dependent (get-type type-id)]))
 (code:comment "get-type : Integer -> Asn1-Type")
 (define (get-type type-id)
@@ -150,49 +152,49 @@ time the type is used for encoding or decoding.
     [(1) INTEGER]
     [(2) IA5String]
     [else (error 'get-type "unknown type-id: ~e" type-id)]))
-(DER-encode IntOrString (hasheq 'type-id 1 'value 729072))
-(DER-encode IntOrString (hasheq 'type-id 2 'value "hello"))
+(asn1->bytes/DER IntOrString (hasheq 'type-id 1 'value 729072))
+(asn1->bytes/DER IntOrString (hasheq 'type-id 2 'value "hello"))
 ]
 
 See also @secref["handling-info"].
 }
 
-@defform[(Set component ...)
+@defform[(SET component ...)
          #:grammar ([component [name-id maybe-tag component-type maybe-option]])
          #:contracts ([component-type asn1-type?])]{
 
-Corresponds the ASN.1 SET type form.
+Corresponds the ASN.1 @tt{SET} type form.
 
 Represented by Racket values of the following form:
 @racketblock[(hash 'name-id _component-value ... ...)]
 where each @racket[_component-value] is a @racket[component-type] value.
 }
 
-@defproc[(SequenceOf [component-type asn1-type?])
+@defproc[(SEQUENCE-OF [component-type asn1-type?])
          asn1-type?]{
 
-Corresponds to the ASN.1 SEQUENCE OF type form.
+Corresponds to the ASN.1 @tt{SEQUENCE OF} type form.
 
 Represented by Racket values of the following form:
 @racketblock[(list _component-value ...)]
 where each @racket[_component-value] is a @racket[component-type] value.
 }
 
-@defproc[(SetOf [component-type asn1-type?])
+@defproc[(SET-OF [component-type asn1-type?])
          asn1-type?]{
 
-Corresponds the the ASN.1 SET OF type form.
+Corresponds the the ASN.1 @tt{SET OF} type form.
 
 Represented by Racket values of the following form:
 @racketblock[(list _component-value ...)]
 where each @racket[_component-value] is a @racket[component-type] value.
 }
 
-@defform[(Choice variant ...)
+@defform[(CHOICE variant ...)
          #:grammar ([variant [name-id maybe-tag variant-type maybe-option]])
          #:contracts ([variant-type asn1-type?])]{
 
-Corresonds to the ASN.1 CHOICE type form.
+Corresonds to the ASN.1 @tt{CHOICE} type form.
 
 Represented by Racket values of the following form:
 @racketblock[(list _variant-name-symbol _variant-value)]
@@ -200,7 +202,7 @@ where @racket[_variant-value] is a value of the @racket[variant-type] in the
 variant named by @racket[_variant-name-symbol].
 }
 
-@defform[(Tag maybe-tag-class tag type)
+@defform[(TAG maybe-tag-class tag type)
          #:grammar ([tag (code:line #:implicit tag-number)
                          (code:line #:explicit tag-number)])
          #:contracts ([type asn1-type?])]{
@@ -210,85 +212,39 @@ Corresponds to an ASN.1 alternatively tagged type.
 The representation is the same as that of @racket[type].
 }
 
-@defproc[(Wrap [type asn1-type?]
-               [#:pre-encode pre-encode (or/c (-> any/c any/c) #f) #f]
-               [#:encode encode (or/c (-> any/c bytes?) #f) #f]
-               [#:decode decode (or/c (-> bytes? any/c) #f) #f]
-               [#:post-decode post-decode (or/c (-> any/c any/c) #f) #f])
+@defproc[(WRAP [type asn1-type?]
+               [#:encode encode (or/c (-> any/c any/c) #f) #f]
+               [#:decode decode (or/c (-> any/c any/c) #f) #f])
          asn1-type?]{
 
 Produces a type @racket[_wrapped-type] that acts like @racket[type],
 but whose encoding is affected by the additional parameters as
 follows:
 
-If @racket[pre-encode] is a function, then when encoding @racket[_v]
-as @racket[_wrapped-type], evaluate @racket[(pre-encode _v)] and pass
-that to the built-in encoding rules (or the next encoder hook) instead
-of @racket[_v].
-
 If @racket[encode] is a function, then when encoding @racket[_v] as
-@racket[_wrapped-type], evaluate @racket[(encode _v)] and use that as
-the value component of the TLV triple instead of calling the built-in
-encoding rules.
+@racket[_wrapped-type], evaluate @racket[(encode _v)] and pass that to
+the built-in encoding rules (or the next encoder hook) instead of
+@racket[_v].
 
-If @racket[decode] is a function, then when decoding the value
-component bytestring @racket[_b] as @racket[_wrapped-type], evaluate
-@racket[(decode _b)] and use that as the decoded value instead of
-calling the built-in decoding rules.
-
-If @racket[post-decode] is a function, then when decoding a bytestring
-as @racket[_wrapped-type], first call the built-in decoding rules (or
-the next decoder hook) to get a Racket value @racket[_v], then
-evaluate @racket[(post-decode _v)] and return the result as the
-decoded value.
-
-One use of wrapped types with encoding rules is for efficiency. For
-example, suppose that you already have a large integer in the
-appropriate octet-string form (perhaps from another library or from
-reading a serialized version). Instead of converting it to a bignum to
-pass to @racket[DER-encode], you can add use a wrapped type to accept
-the value directly as a bytestring:
-
-@interaction[#:eval the-eval
-(define MyInteger
-  (Wrap INTEGER #:encode (lambda (b) b)))
-(define Signature (Sequence [r MyInteger] [s MyInteger]))
-(define sig
-  (DER-encode Signature
-              (hasheq 'r #"}nSi|-uy"
-                      's #"y\21~P#3\37\b")))
-sig
-(DER-decode Signature sig)
-]
-
-Beware, no checking is done on the bytestring! In the example above,
-the programmer must be sure that the bytestring is an encoding of the
-integer as a @emph{big-endian, signed, two's complement base-256
-integer repesented using the minimum number of octets}. (A
-@hyperlink["https://www.cs.auckland.ac.nz/~pgut001/pubs/x509guide.txt"]{bug
-in some X.509 certificate software} was to encode certain numbers
-using an @emph{unsigned} encoding.)
+If @racket[decode] is a function, then when decoding a bytestring as
+@racket[_wrapped-type], first call the built-in decoding rules (or the
+next decoder hook) to get a Racket value @racket[_v], then evaluate
+@racket[(decode _v)] and return the result as the decoded value.
 
 Encoding hooks can also be used to add in support for base types not
 otherwise supported by this library. See
 @secref["handling-unsupported"] for details.
-
-One disadvantage to @racket[Wrap] is that it mixes encoding concerns
-into the type structure. See @secref["der-hooks"] for an
-alternative. The expression @racket[(Wrap type)] can be used to
-generate a type distinct from @racket[type] for the purpose of
-targeting encoding or decoding hooks.
 }
 
-@defform[(Delay type)
+@defform[(DELAY type)
          #:contracts ([type asn1-type?])]{
 
 Produces a type that acts like @racket[type], but delays the
 evaluation of @racket[type] until it is needed for encoding or
 decoding, or to check the well-formedness of another type.
 
-Use @racket[Delay] to write recursive types or types with forward
-references.
+Use @racket[DELAY] to write recursive types or type definitions with
+forward references.
 }
 
 
@@ -296,31 +252,22 @@ references.
 
 @defthing[ANY asn1-type?]{
 
-Unknown or context-dependent type.
-
-There are no built-in encoding rules for @racket[ANY]. The built-in
-decoding rules handle the base types listed in @secref["base-types"]
-with their normal tags, and they treat all sequence values as
-@racket[(SequenceOf ANY)] and all set values as @racket[(SetOf
-ANY)]. Non-universal tags cannot be decoded using @racket[ANY].
-
-Unlike all other types, a decoder hook for @racket[ANY] receives the
-full TLV triple instead of only the value component, and an encoder
-hook for @racket[ANY] must produce a full TLV triple instead of only
-the value component.
+Unknown or context-dependent type. Represented as a
+@racket[BER-frame]. Decoding an unknown ASN.1 encoding as @racket[ANY]
+shows the frame structure and tags, and may be help you deduce what
+the encoding represents.
 
 @interaction[#:eval the-eval
-(define ANY-as-bytes (Wrap ANY #:decode (lambda (b) b)))
-(define IA5String-as-bytes (Wrap IA5String #:decode (lambda (b) b)))
-(DER-encode IA5String "abc")
-(DER-decode IA5String-as-bytes (DER-encode IA5String "abc"))
-(DER-decode ANY-as-bytes (DER-encode IA5String "abc"))
+(bytes->asn1 ANY
+  (asn1->bytes (SEQUENCE-OF INTEGER) '(1 2 3 -1000)))
+(bytes->asn1 ANY
+  (asn1->bytes (SEQUENCE [a IA5String] [b INTEGER])
+               (hasheq 'a "Jean" 'b 24601)))
 ]
 }
 
 
 @section[#:tag "type-util"]{ASN.1 Type Utilities}
-
 
 @defstruct*[bit-string ([bytes bytes?] [unused (integer-in 0 7)])]{
 
@@ -358,7 +305,7 @@ pkcs-1
 ]
 }
 
-@defproc[(printable-string? [v any/c]) boolean?]{
+@defproc[(asn1-printable-string? [v any/c]) boolean?]{
 
 Returns @racket[#t] if @racket[v] is a string containing only the
 characters allowed by @racket[PrintableString], @racket[#f] otherwise.

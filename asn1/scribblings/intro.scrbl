@@ -24,91 +24,83 @@ ASN.1 has several familiar base types, such as @racket[INTEGER] and
 set.)
 
 Racket values are encoded as instances of an ASN.1 type using the
-@racket[DER-encode] function, which produces a bytestring
+@racket[asn1->bytes/DER] function, which produces a bytestring
 (@racket[bytes?]):
 
 @interaction[#:eval the-eval
-(DER-encode INTEGER 123456)
-(DER-encode INTEGER (expt 10 30))
-(DER-encode IA5String "I am the walrus.")
+(asn1->bytes/DER INTEGER 123456)
+(asn1->bytes/DER INTEGER (expt 10 30))
+(asn1->bytes/DER IA5String "I am the walrus.")
 ]
 
 A DER bytestring is decoded according to an ASN.1 type to get a Racket
-value using the @racket[DER-decode] function:
+value using the @racket[bytes->asn1/DER] function:
 
 @interaction[#:eval the-eval
-(DER-decode INTEGER (DER-encode INTEGER 123456))
-(DER-decode INTEGER (DER-encode INTEGER (expt 10 30)))
-(DER-decode IA5String (DER-encode IA5String "I am the walrus."))
+(bytes->asn1/DER INTEGER (asn1->bytes/DER INTEGER 123456))
+(bytes->asn1/DER INTEGER (asn1->bytes/DER INTEGER (expt 10 30)))
+(bytes->asn1/DER IA5String (asn1->bytes/DER IA5String "I am the walrus."))
 ]
 
-Complex types are created using forms such as @racket[Sequence],
-@racket[Choice], and @racket[SequenceOf]. For example, here is an
+Complex types are created using forms such as @racket[SEQUENCE],
+@racket[CHOICE], and @racket[SEQUENCE-OF]. For example, here is an
 ASN.1 type for a sequence of integers:
 
 @interaction[#:eval the-eval
-(define Integers (SequenceOf INTEGER))
-(DER-encode Integers '(1 2 3 -1000))
-(DER-decode Integers (DER-encode Integers '(1 2 3 -1000)))
+(define Integers (SEQUENCE-OF INTEGER))
+(asn1->bytes/DER Integers '(1 2 3 -1000))
+(bytes->asn1/DER Integers (asn1->bytes/DER Integers '(1 2 3 -1000)))
 ]
 
-Unlike @racket[SequenceOf], @racket[Sequence] and @racket[Choice] take
-multiple components, each labeled with a name and optionally a tagging
-directive.
+Unlike @racket[SEQUENCE-OF], @racket[SEQUENCE] and @racket[CHOICE]
+take multiple components, each labeled with a name and optionally a
+tagging directive.
 
 Here is an ASN.1 type representing a three-dimensional point:
 
 @interaction[#:eval the-eval
-(define Point (Sequence [x INTEGER] [y INTEGER] [z INTEGER]))
-(DER-encode Point (hasheq 'x 123 'y 456 'z 789))
+(define Point (SEQUENCE [x INTEGER] [y INTEGER] [z INTEGER]))
+(asn1->bytes/DER Point (hasheq 'x 123 'y 456 'z 789))
 ]
 
 And here's one representing a reference to a person:
 
 @interaction[#:eval the-eval
-(define Person (Choice [name IA5String] [number INTEGER]))
-(DER-encode Person '(name "Jean"))
-(DER-encode Person '(number 24601))
-(DER-decode Person (DER-encode Person '(number 24601)))
+(define Person (CHOICE [name IA5String] [number INTEGER]))
+(asn1->bytes/DER Person '(name "Jean"))
+(asn1->bytes/DER Person '(number 24601))
+(bytes->asn1/DER Person (asn1->bytes/DER Person '(number 24601)))
 ]
 
-Sometimes components of a Choice (and sometimes other structured
+Sometimes components of a choice (and sometimes other structured
 types) must be given alternative tags because their default tags would
 not distinguish between them.
 
 @interaction[#:eval the-eval
 (define Employee
-  (Choice [name  #:implicit 0 IA5String]
+  (CHOICE [name  #:implicit 0 IA5String]
           [title #:implicit 1 IA5String]))
-(DER-encode Employee '(name "Ash"))
-(DER-encode Employee '(title "Boomstick Specialist"))
+(asn1->bytes/DER Employee '(name "Ash"))
+(asn1->bytes/DER Employee '(title "Boomstick Specialist"))
 ]
 
-If an encoded value uses only built-in types without alternative
-tagging, it can be decoded using the type @racket[ANY] instead of the
-specific ASN.1 type to which it belongs. Values cannot be encoded as
-@racket[ANY].
+Attempting to decode an ASN.1 value at a different type than it was
+encoded as usually results in an error:
 
 @interaction[#:eval the-eval
-(DER-decode ANY (DER-encode INTEGER 123456))
-(DER-decode ANY (DER-encode IA5String "I am the walrus."))
+(bytes->asn1/DER INTEGER (asn1->bytes/DER IA5String "hello"))
+(bytes->asn1/DER Person (asn1->bytes/DER Employee '(name "Ash")))
 ]
 
-Structured values decoded as @racket[ANY] do not have symbolic labels;
-those are part of the type, not the encoding. Sequences are decoded as
-if they were @racket[(SequenceOf ANY)].
+If you don't know the type of an ASN.1 encoding, you can decode it as
+the @racket[ANY] type to see the frame structure without interpreting
+the primitive contents.
 
 @interaction[#:eval the-eval
-(DER-decode ANY (DER-encode Point (hasheq 'x 123 'y 456 'z 789)))
-(DER-decode ANY (DER-encode Person '(name "Jean")))
+(bytes->asn1/DER ANY
+  (asn1->bytes/DER Point (hasheq 'x 123 'y 456 'z 789)))
 ]
-
-Finally, encodings that use context-specific tags, such as
-@racket[Employee] above, cannot be decoded with @racket[ANY]:
-
-@interaction[#:eval the-eval
-(DER-decode ANY (DER-encode Employee '(name "Ash")))
-]
-
+In this example, @racket['universal 16] is the tag for sequences, and
+@racket['universal 2] is the tag for integers.
 
 @(close-eval the-eval)

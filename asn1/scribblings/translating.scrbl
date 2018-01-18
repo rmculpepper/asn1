@@ -110,7 +110,7 @@ dependent sequence field type.
 
 @racketblock[
 (define (AlgorithmIdentifier InfoObjectSet)
-  (Sequence [algorithm OBJECT-IDENTIFIER]
+  (SEQUENCE [algorithm OBJECT-IDENTIFIER]
             [parameters #:dependent (cadr (assoc algorithm InfoObjectSet))]))
 (define HashAlgorithm (AlgorithmIdentifier OAEP-PSSDigestAlgorithms))
 ]
@@ -129,10 +129,10 @@ are not needed) using @racket[Tag] with a universal implicit tag.
 Here is a basic definition of @racket[T61String] using @racket[Tag]:
 
 @interaction[#:eval the-eval
-(define T61String (Tag #:universal #:implicit 20 OCTET-STRING))
-(DER-encode OCTET-STRING #"abc")
-(code:line (DER-encode T61String #"abc") (code:comment "note different tag byte"))
-(DER-decode T61String (DER-encode T61String #"abc"))
+(define T61String (TAG #:implicit #:universal 20 OCTET-STRING))
+(asn1->bytes/DER OCTET-STRING #"abc")
+(code:line (asn1->bytes/DER T61String #"abc") (code:comment "note different tag byte"))
+(bytes->asn1/DER T61String (asn1->bytes/DER T61String #"abc"))
 ]
 
 When encoding a @racket[T61String], the same Racket values are
@@ -141,19 +141,18 @@ accepted as for @racket[OCTET-STRING]---that is, bytestrings
 none. Likewise when decoding. 
 
 To change the way T61Strings are encoded and decoded, use
-@racket[Wrap] to add encoding and decoding rules (or see
-@secref["der-hooks"] for an alternative). Let us pretend for a moment
-that T61Strings are just Latin-1 strings. Then we could define
+@racket[WRAP] to add encoding and decoding rules. Let us pretend for a
+moment that T61Strings are just Latin-1 strings. Then we could define
 T61String with automatic conversion to and from Racket strings as
 follows:
 
 @interaction[#:eval the-eval
 (define T61String
-  (Wrap (Tag #:universal #:implicit 20 OCTET-STRING)
-        #:pre-encode string->bytes/latin-1
-        #:post-decode bytes->string/latin-1))
-(DER-encode T61String "pretend T61 is Latin-1")
-(DER-decode T61String (DER-encode T61String "pretend T61 is Latin-1"))
+  (WRAP (TAG #:implicit #:universal 20 OCTET-STRING)
+        #:encode string->bytes/latin-1
+        #:decode bytes->string/latin-1))
+(asn1->bytes/DER T61String "pretend T61 is Latin-1")
+(bytes->asn1/DER T61String (asn1->bytes/DER T61String "pretend T61 is Latin-1"))
 ]
 
 The following ASN.1 pseudo-definitions may be helpful in translating
@@ -238,8 +237,8 @@ An INSTANCE OF type can be represented by the following pattern (from
 @interaction[#:eval the-eval
 (code:comment "parameterized by type representing the type identifier")
 (define (InstanceOf oid->type)
-  (Tag #:universal #:implicit 8
-       (Sequence [type-id OBJECT-IDENTIFIER]
+  (TAG #:universal #:implicit 8
+       (SEQUENCE [type-id OBJECT-IDENTIFIER]
                  [value #:explicit 0 #:dependent (oid->type type-id)])))
 ]
 
