@@ -10,13 +10,13 @@
 (define rsa-pub (file->bytes "crypto-data/rsa-pubkey.der"))
 (define rsa-priv (file->bytes "crypto-data/rsa-privkey.der"))
 
-(bytes->asn1 SubjectPublicKeyInfo rsa-pub #:rules 'DER)
-(bytes->asn1 RSAPrivateKey rsa-priv #:rules 'DER)
+(bytes->asn1/DER SubjectPublicKeyInfo rsa-pub)
+(bytes->asn1/DER RSAPrivateKey rsa-priv)
 
 ;; Generate DSA parameters
 ;;   openssl dsaparam -outform DER -out dsa-param.der 512
 
-(bytes->asn1 Dss-Parms (file->bytes "crypto-data/dsa-param.der") #:rules 'DER)
+(bytes->asn1/DER Dss-Parms (file->bytes "crypto-data/dsa-param.der"))
 
 ;; Generate DSA keypair
 ;;   openssl dsaparam -inform DER -in dsa-param.der -outform PEM -out dsa-param.pem
@@ -24,5 +24,5 @@
 ;;   openssl dsa -inform PEM -in dsa-privkey.pem -outform DER -out dsa-privkey.der
 ;;   openssl dsa -inform PEM -in dsa-privkey.pem -outform DER -pubout -out dsa-pubkey.der
 
-(bytes->asn1 DSAPrivateKey (file->bytes "crypto-data/dsa-privkey.der") #:rules 'DER)
-(bytes->asn1 SubjectPublicKeyInfo (file->bytes "crypto-data/dsa-pubkey.der") #:rules 'DER)
+(bytes->asn1/DER DSAPrivateKey (file->bytes "crypto-data/dsa-privkey.der"))
+(bytes->asn1/DER SubjectPublicKeyInfo (file->bytes "crypto-data/dsa-pubkey.der"))

@@ -46,12 +46,12 @@ References:
   (cond [(get-type2 alg-oid known-public-key-algorithms)
          => (lambda (type)
               (WRAP BIT-STRING
-                    #:pre-encode (lambda (v) (bit-string (BER-encode type v #:der? #t) 0))
-                    #:post-decode (lambda (v) (BER-decode type (bit-string-bytes v)))))]
+                    #:encode (lambda (v) (bit-string (asn1->bytes/DER type v) 0))
+                    #:decode (lambda (v) (bytes->asn1 type (bit-string-bytes v)))))]
         [else
          (WRAP BIT-STRING
-               #:pre-encode (lambda (v) (bit-string v 0))
-               #:post-decode (lambda (v) (bit-string-bytes v)))]))
+               #:encode (lambda (v) (bit-string v 0))
+               #:decode (lambda (v) (bit-string-bytes v)))]))
 
 ;; ============================================================
 ;; RSA
@@ -248,8 +248,8 @@ References:
   (cond [(get-type alg-oid known-private-key-formats)
          => (lambda (type)
               (WRAP OCTET-STRING
-                    #:pre-encode (lambda (v) (BER-encode type v #:der? #t))
-                    #:post-decode (lambda (v) (BER-decode type v #:der? #t))))]
+                    #:encode (lambda (v) (asn1->bytes/DER type v))
+                    #:decode (lambda (v) (bytes->asn1/DER type v))))]
         [else OCTET-STRING]))
 
 (define Attributes (SET-OF ANY))
