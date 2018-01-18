@@ -1,4 +1,4 @@
-;; Copyright 2014 Ryan Culpepper
+;; Copyright 2014-2017 Ryan Culpepper
 ;; 
 ;; This library is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU Lesser General Public License as published
@@ -19,10 +19,10 @@
          racket/contract
          racket/promise
          racket/match
-         "private/base-types.rkt"
+         "private/base.rkt"
          "private/types.rkt"
-         "private/der.rkt"
-         "private/der-frame.rkt")
+         "private/ber.rkt"
+         "private/ber-frame.rkt")
 (provide Sequence
          Set
          Choice
@@ -69,140 +69,129 @@
           ;; private/base-types.rkt
           [struct bit-string ([bytes bytes?] [unused (integer-in 0 7)])]
 
-          ;; private/der.rkt
-          [DER-encode-hooks
-           (parameter/c
-            (listof (cons/c asn1-type?
-                            (or/c (list/c 'pre (-> any/c any/c))
-                                  (list/c 'encode (-> any/c bytes?))))))]
-          [DER-decode-hooks
-           (parameter/c
-            (listof (cons/c asn1-type?
-                            (or/c (list/c 'decode (-> bytes? any/c))
-                                  (list/c 'post (-> any/c any/c))))))]
-          [DER-encode
-           (-> asn1-type? any/c bytes?)]
-          [DER-encode-value
-           (-> asn1-type? any/c bytes?)]
-          [DER-decode
-           (-> asn1-type? bytes? any/c)]
-          [DER-decode-value
-           (-> asn1-type? bytes? any/c)]
-          [DER-read
-           (-> asn1-type? input-port? any/c)]
-          ;; private/der-frame.rkt
-          [struct DER-frame
-                  ([tagclass (or/c 'universal 'application 'private 'context-specific)]
-                   [tagkind (or/c 'primitive 'constructed)]
-                   [tagnum exact-nonnegative-integer?]
-                   [value bytes?])]
-          [DER-frame->bytes
-           (-> DER-frame? bytes?)]
-          [bytes->DER-frame
-           (-> bytes? DER-frame?)]
-          [read-DER-frame
-           (-> input-port? DER-frame?)]
+          ;; private/ber.rkt
+          [BER-encode (->* [asn1-type? any/c] [#:der? any/c] BER-frame?)]
+          [BER-decode (->* [asn1-type? BER-frame?] [#:der? any/c] any/c)]
+
+          #|
+          [read-asn1  (->* [asn1-type?] [input-port? #:der? any/c] any)]
+          [write-asn1 (->* [asn1-type? any/c] [output-port? #:der? any/c] void?)]
+
+          [bytes->asn1 (->* [bytes?] [#:der? any/c] any)]
+          [asn1->bytes (->* [any/c] [#:der? any/c] bytes?)]
+          |#
+
+          ;; private/ber-frame.rkt
+          [struct BER-frame
+                  ([tag exact-nonnegative-integer?]
+                   [content (or/c bytes? (listof (or/c bytes? BER-frame?)))])]
+          [read-BER-frame
+           (->* [] [input-port? #:der? any/c #:limit (or/c exact-nonnegative-integer? +inf.0)]
+                BER-frame?)]
+          [write-BER-frame
+           (->* [BER-frame?] [output-port? #:der? any/c] void?)]
           ))
 
 ;; ============================================================
 
 (begin-for-syntax
- (define-splicing-syntax-class tag-class
-   (pattern (~seq #:universal) #:with tclass #'universal)
-   (pattern (~seq #:private)   #:with tclass #'private)
-   (pattern (~seq #:application) #:with tclass #'application)
-   (pattern (~seq) #:with tclass #'context-specific))
- (define-splicing-syntax-class tag
-   (pattern (~seq :tag-class #:explicit etag:nat)
-            #:with wrap-type #'asn1-type:explicit-tag
-            #:with tag #''(tclass etag))
-   (pattern (~seq :tag-class #:implicit itag:nat)
-            #:with wrap-type #'values
-            #:with tag #''(tclass itag))
-   (pattern (~seq)
-            #:with wrap-type #'values
-            #:with tag #''#f))
- (define-splicing-syntax-class option-clause
-   (pattern (~seq #:optional)
-            #:with option #''(optional))
-   (pattern (~seq #:default v:expr)
-            #:with option #'(list 'default v))
-   (pattern (~seq)
-            #:with option #''#f))
 
- (define-syntax-class element
-   #:attributes (name et)
-   (pattern [name:id :tag type :option-clause]
-            #:declare type (expr/c #'asn1-type?)
-            #:with et #'(element 'name tag (wrap-type type.c) option #f)))
+  (define-splicing-syntax-class tag-class
+    (pattern (~seq #:universal) #:with tagclass #'universal)
+    (pattern (~seq #:private)   #:with tagclass #'private)
+    (pattern (~seq #:application) #:with tagclass #'application)
+    (pattern (~seq) #:with tagclass #'context-specific))
 
- (define-syntax-class sequence-element
-   #:attributes (name et dep)
-   (pattern [name:id :tag type :option-clause]
-            #:declare type (expr/c #'asn1-type?)
-            #:with et #'(element 'name tag (wrap-type type.c) option #f)
-            #:with dep #'#f)
-   (pattern [name:id :tag #:dependent type :option-clause]
-            #:declare type (expr/c #'asn1-type?)
-            #:with et #'(element 'name tag (wrap-type ANY) option #f)
-            #:with dep #'type.c))
+  (define-splicing-syntax-class tag
+    (pattern (~seq :tag-class tagn:nat)
+             #:with e #'(make-tag 'tagclass 'tagn)))
 
- (define (in-rprefixes lst)
-   ;; Produces list same length as lst
-   (let loop ([lst lst] [rprefix null])
-     (cond [(pair? lst)
-            (cons rprefix (loop (cdr lst) (cons (car lst) rprefix)))]
-           [(null? lst)
-            null]))))
+  (define-splicing-syntax-class tag-clause
+    #:attributes (mode e)
+    (pattern (~seq #:explicit :tag)
+             #:with mode 'explicit)
+    (pattern (~seq #:implicit :tag)
+             #:with mode 'implicit)
+    (pattern (~seq)
+             #:with mode #f
+             #:with e #'#f))
 
-(define-syntax Sequence
-  (syntax-parser
-   [(Sequence e:sequence-element ...)
-    #`(asn1-type:sequence
-       (check-sequence-types
-        (list #,@(for/list ([prefix-names (in-rprefixes (syntax->list #'(e.name ...)))]
-                            [e-et (syntax->list #'(e.et ...))]
-                            [e-dep (syntax->list #'(e.dep ...))])
-                   #`(add-refine #,e-et (wrap-refine #,prefix-names #,e-dep))))))]))
+  (define-splicing-syntax-class option-clause
+    (pattern (~seq #:optional)
+             #:with option #''(optional))
+    (pattern (~seq #:default v:expr)
+             #:with option #'(list 'default v))
+    (pattern (~seq)
+             #:with option #''#f))
 
-(define (add-refine elt refine)
-  (match elt
-    [(element name tag type option _)
-     (element name tag type option refine)]))
+  (define (in-rprefixes lst)
+    ;; Produces list same length as lst
+    (let loop ([lst lst] [rprefix null])
+      (cond [(pair? lst)
+             (cons rprefix (loop (cdr lst) (cons (car lst) rprefix)))]
+            [(null? lst)
+             null]))))
 
-(define-syntax wrap-refine
-  (syntax-parser
-   [(wrap-refine (name ...) #f)
-    #'#f]
-   [(wrap-refine (name ...) type)
-    #'(lambda (h)
-        (let ([name (hash-ref h 'name #f)] ...)
-          type))]))
+(define-syntax (Sequence stx)
+  (define-syntax-class sequence-component
+    #:attributes (name type0 option dep)
+    (pattern [name:id t:tag-clause type :option-clause]
+             #:declare type (expr/c #'asn1-type?)
+             #:with type0 #'(type-add-tag 'Sequence type.c 't.mode t.e)
+             #:with dep #'#f)
+    (pattern [name:id t:tag-clause #:dependent type :option-clause]
+             #:declare type (expr/c #'asn1-type?)
+             #:with type0 #'(type-add-tag 'Sequence ANY 't.mode t.e)
+             #:with dep #'(type-add-tag 'Sequence type.c 't.mode t.e)))
+  (define (wrap-refine names dep)
+    (syntax-parse dep
+      [#f #f]
+      [dep (with-syntax ([(name ...) names])
+             #'(lambda (h) (let ([name (hash-ref h 'name #f)] ...) dep)))]))
+  (syntax-parse stx
+    [(Sequence c:sequence-component ...)
+     #`(asn1-type:sequence
+        (check-sequence-components
+         'Sequence
+         (map component-add-refine
+              (list (make-component 'c.name c.type0 c.option) ...)
+              (list #,@(for/list ([prefix-names (in-rprefixes (syntax->list #'(c.name ...)))]
+                                  [c-dep (syntax->list #'(c.dep ...))])
+                         (wrap-refine prefix-names c-dep))))))]))
 
-(define-syntax Set
-  (syntax-parser
-   [(Set e:element ...)
-    #'(asn1-type:set (check-set-types (list e.et ...)))]))
+(define-syntax (Set stx)
+  (define-syntax-class set-component
+    #:attributes (name e)
+    (pattern [name:id t:tag-clause type :option-clause]
+             #:declare type (expr/c #'asn1-type?)
+             #:with e #'(make-component 'name (type-add-tag 'Set type.c 't.mode t.e) option)))
+  (syntax-parse stx
+    [(Set c:set-component ...)
+     #'(asn1-type:set (check-set-components (list c.e ...)))]))
 
-(define-syntax Choice
-  (syntax-parser
-   [(Choice e:element ...)
-    #'(asn1-type:choice (check-choice-types (list e.et ...)))]))
+(define-syntax (Choice stx)
+  (define-syntax-class variant
+    (pattern [name:id t:tag-clause type]
+             #:declare type (expr/c #'asn1-type?)
+             #:with e #'(make-variant 'name (type-add-tag 'Choice type.c 't.mode t.e))))
+  (syntax-parse stx
+    [(Choice v:variant ...)
+     #'(asn1-type:choice (check-choice-variants (list v.e ...)))]))
 
 (define-syntax Tag
   (syntax-parser
-   [(Tag :tag-class #:explicit etag:nat type)
-    #:declare type (expr/c #'asn1-type?)
-    #'(make-tag-type '(tclass etag) (asn1-type:explicit-tag type.c))]
-   [(Tag :tag-class #:implicit itag:nat type)
-    #:declare type (expr/c #'asn1-type?)
-    #'(make-tag-type '(tclass itag) type.c)]))
+    [(Tag #:explicit t:tag type)
+     #:declare type (expr/c #'asn1-type?)
+     #'(type-add-tag 'Tag type.c 'explicit t.e)]
+    [(Tag #:implicit t:tag type)
+     #:declare type (expr/c #'asn1-type?)
+     #'(type-add-tag 'Tag type.c 'implicit t.e)]))
 
 (define-syntax Delay
   (syntax-parser
-   [(Delay type)
-    #:declare type (expr/c #'asn1-type?)
-    #'(asn1-type:delay (delay type))]))
+    [(Delay type)
+     #:declare type (expr/c #'asn1-type?)
+     #'(asn1-type:delay (delay type))]))
 
 (define (SequenceOf type)
   (asn1-type:sequence-of type))
@@ -215,24 +204,37 @@
               #:encode [encode-f #f]
               #:decode [decode-f #f]
               #:post-decode [post-decode-f #f])
-  (asn1-type:wrap type pre-encode-f encode-f decode-f post-decode-f))
+  (define (bad)
+    (error 'Wrap "cannot add encode/decode hook to non-base type\n  type: ~e\n  hook: ~e"
+           type (or encode-f decode-f)))
+  (define type*
+    (cond [(or encode-f decode-f)
+           (let loop ([type type])
+             (match type
+               [(asn1-type:base name tag encode0 decode0)
+                (asn1-type:base name tag (or encode-f encode0) (or decode-f decode0))]
+               [(asn1-type:implicit-tag tag type)
+                (asn1-type:implicit-tag tag (loop type))]
+               [_ (bad)]))]
+          [else type]))
+  (asn1-type:wrap type* pre-encode-f post-decode-f))
 
 ;; ============================================================
 
 (define ANY (asn1-type:any))
-(define BOOLEAN (asn1-type:base 'BOOLEAN))
-(define INTEGER (asn1-type:base 'INTEGER))
-(define BIT-STRING (asn1-type:base 'BIT-STRING))
-(define OCTET-STRING (asn1-type:base 'OCTET-STRING))
-(define NULL (asn1-type:base 'NULL))
-(define OBJECT-IDENTIFIER (asn1-type:base 'OBJECT-IDENTIFIER))
-(define RELATIVE-OID (asn1-type:base 'RELATIVE-OID))
-(define ENUMERATED (asn1-type:base 'ENUMERATED))
-(define PrintableString (asn1-type:base 'PrintableString))
+(define BOOLEAN (make-base-type 'BOOLEAN))
+(define INTEGER (make-base-type 'INTEGER))
+(define BIT-STRING (make-base-type 'BIT-STRING))
+(define OCTET-STRING (make-base-type 'OCTET-STRING))
+(define NULL (make-base-type 'NULL))
+(define OBJECT-IDENTIFIER (make-base-type 'OBJECT-IDENTIFIER))
+(define RELATIVE-OID (make-base-type 'RELATIVE-OID))
+(define ENUMERATED (make-base-type 'ENUMERATED))
+(define PrintableString (make-base-type 'PrintableString))
 ;; T61String
-(define IA5String (asn1-type:base 'IA5String))
+(define IA5String (make-base-type 'IA5String))
 ;; UTCTime
-(define UTF8String (asn1-type:base 'UTF8String))
+(define UTF8String (make-base-type 'UTF8String))
 
 ;; ============================================================
 
