@@ -253,9 +253,9 @@
 (define (bytes->asn1 type b #:rules [rules 'BER] #:who [who 'bytes->asn1])
   (with-who who
     (lambda ()
-      (read/exhaust who "ASN1 value"
-                    (lambda (in) (read-asn1 type in #:rules rules))
-                    (open-input-bytes b)))))
+      (-read/exhaust who "ASN1 value"
+                     (lambda (in) (read-asn1 type in #:rules rules))
+                     (open-input-bytes b)))))
 
 (define (asn1->bytes type v #:rules [rules 'BER] #:who [who 'asn1->bytes])
   (with-who who
@@ -272,3 +272,18 @@
   (bytes->asn1 type b #:rules 'DER #:who 'bytes->asn1/DER))
 (define (asn1->bytes/DER type v)
   (asn1->bytes type v #:rules 'DER #:who 'asn1->bytes/DER))
+
+;; ----
+
+;; -read/exhaust : Symbol String/#f (InputPort -> X) [InputPort] -> X
+(define (-read/exhaust who what do-read [in (current-input-port)])
+  (begin0 (do-read in)
+    (-check-input-exhausted who what in)))
+
+;; -check-input-exhausted : Symbol String/#f InputPort -> Void
+(define (-check-input-exhausted who what in)
+  (unless (eof-object? (peek-byte in))
+    (define-values (line col pos) (port-next-location in))
+    (error who "bytes left over~a\n  at: ~a:~a:~a:~a"
+           (if what (format " after reading one ~a" what) "")
+           (object-name in) (or line "") (or col "") (or pos ""))))
