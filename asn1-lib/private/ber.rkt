@@ -104,7 +104,7 @@
        ;; Outer implicit tag takes precedence; prefer alt-tag
        (encode-frame type* v (or alt-tag tag*))]
       [(asn1-type:explicit-tag tag* type*)
-       (frame 'SEQUENCE (list (encode-frame type* v #f)) alt-tag)]
+       (frame 'SEQUENCE (list (encode-frame type* v #f)) (or alt-tag tag*))]
       [(asn1-type:wrap type* pre-encode _)
        (let ([v* (if pre-encode (pre-encode v) v)])
          (encode-frame type* v* alt-tag))]
