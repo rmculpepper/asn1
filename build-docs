@@ -4,4 +4,4 @@ raco scribble --htmls \
   --dest doc-build \
   --redirect-main http://docs.racket-lang.org \
   +m \
-  asn1/scribblings/asn1.scrbl
+  asn1-doc/scribblings/asn1.scrbl
