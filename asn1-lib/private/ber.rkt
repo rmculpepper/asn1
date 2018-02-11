@@ -170,6 +170,9 @@
      (unless (ascii-string? v) (bad-value 'ascii-string?))
      (string->bytes/latin-1 v)]
     ;; UTCTime
+    [(UTF8String)
+     (unless (string? v) (bad-value 'string?))
+     (string->bytes/utf-8 v)]
     [else (error 'BER-encode-base "internal error: unsupported base type\n  type: ~s" base-type)]))
 
 (define none (gensym))
@@ -341,7 +344,7 @@
       (for/fold ([frames frames] [h (hasheq)]) ([ct (in-list cts)])
         (match-define (component ct-name ct-type ct-option _ ct-tags) ct)
         (cond [(for/first ([frame (in-list frames)]
-                           #:when (member (BER-frame-tag ct-tags)))
+                           #:when (member (BER-frame-tag frame) ct-tags))
                  frame)
                => (lambda (frame)
                     (define value (decode-frame ct-type frame #t))

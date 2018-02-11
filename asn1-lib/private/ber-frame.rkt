@@ -222,7 +222,7 @@
            (write-bytes content out)]
           [else
            (for ([frame (in-list content)])
-             (if (bytes? frame) (write-bytes content out) (write-frame frame)))]))
+             (if (bytes? frame) (write-bytes frame out) (write-frame frame)))]))
   (void (write-frame frame)))
 
 ;; make-caching-content->length : -> (U Bytes (Listof (U Bytes BER-Frame))) -> Nat
