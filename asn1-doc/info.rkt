@@ -3,13 +3,12 @@
 ;; ========================================
 ;; pkg info
 
+(define version "1.0")
 (define collection "asn1")
-(define deps
-  '("base"))
+(define deps '("base"))
 (define build-deps
-  '("racket-doc"
-    "scribble-lib"
-    "asn1-lib"))
+  '("racket-doc" "scribble-lib" "asn1-lib"))
+(define pkg-authors '(ryanc))
 
 ;; ========================================
 ;; collect info
