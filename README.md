@@ -2,4 +2,4 @@
 
 ## Documentation
 
-Read the documentation online here: http://rmculpepper.github.io/asn1/asn1/
+Read the documentation online here: http://rmculpepper.github.io/asn1/
