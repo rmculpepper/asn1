@@ -20,7 +20,7 @@ examples of a few ASN.1 modules from internet standards translated to
 use this library. Use
 @racketblock[(collection-path "asn1" "examples")] 
 to locate the local directory containing the examples, or
-@hyperlink["https://github.com/rmculpepper/asn1/tree/master/asn1/examples/"]{view
+@hyperlink["https://github.com/rmculpepper/asn1/tree/master/asn1-test/examples"]{view
 them online}.
 
 @section[#:tag "handling-defs"]{Translating ASN.1 Definition Order}
