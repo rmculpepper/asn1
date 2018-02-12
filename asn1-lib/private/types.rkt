@@ -16,10 +16,9 @@
 #lang racket/base
 (require racket/match
          racket/promise
+         racket/struct
          "base.rkt")
 (provide (all-defined-out))
-
-;; FIXME: custom print
 
 ;; ASN.1 Types
 
@@ -39,18 +38,69 @@
 ;; - (asn1-type:explicit-tag Tag Type)
 ;; - (asn1-type:wrap Type procedure/#f * 2)
 ;; - (asn1-type:delay (promiseof Type))
-(struct asn1-type () #:transparent)
-(struct asn1-type:any asn1-type () #:transparent)
-(struct asn1-type:base asn1-type (name) #:transparent)
-(struct asn1-type:sequence asn1-type (components) #:transparent)
-(struct asn1-type:sequence-of asn1-type (elt) #:transparent)
-(struct asn1-type:set asn1-type (components) #:transparent)
-(struct asn1-type:set-of asn1-type (elt) #:transparent)
-(struct asn1-type:choice asn1-type (variants) #:transparent)
-(struct asn1-type:implicit-tag asn1-type (tag type) #:transparent)
-(struct asn1-type:explicit-tag asn1-type (tag type) #:transparent)
-(struct asn1-type:wrap asn1-type (type pre-encode post-decode) #:transparent)
+(struct asn1-type ()
+  #:property prop:custom-write (lambda (v out mode) (print-type v out mode))
+  #:property prop:custom-print-quotable 'never)
+(struct asn1-type:any asn1-type ())
+(struct asn1-type:base asn1-type (name))
+(struct asn1-type:sequence asn1-type (components))
+(struct asn1-type:sequence-of asn1-type (elt))
+(struct asn1-type:set asn1-type (components))
+(struct asn1-type:set-of asn1-type (elt))
+(struct asn1-type:choice asn1-type (variants))
+(struct asn1-type:implicit-tag asn1-type (tag type))
+(struct asn1-type:explicit-tag asn1-type (tag type))
+(struct asn1-type:wrap asn1-type (type pre-encode post-decode))
 (struct asn1-type:delay asn1-type (promise))
+
+;; Custom printing for types
+(define visited-types (make-parameter (hasheq)))
+(define ((litp f) self out mode) (fprintf out "~a" (f self)))
+(struct literal (s)
+  #:property prop:custom-print-quotable 'never
+  #:property prop:custom-write (litp (lambda (x) (literal-s x))))
+(struct ppcons (c vs)
+  #:property prop:custom-print-quotable 'never
+  #:property prop:custom-write
+  (make-constructor-style-printer (lambda (v) (ppcons-c v)) (lambda (v) (ppcons-vs v))))
+(define (print-type type p mode)
+  (define (recur x) (case mode ((#t) (write x p)) ((#f) (display x p)) ((0 1) (print x p mode))))
+  (define (for-tag tag)
+    (define-values (class index) (tag->class+index tag))
+    (cond [(eq? class 'context-specific) (list index)]
+          [else (list (literal (string->keyword (symbol->string class))) index)]))
+  (define for-component
+    (match-lambda
+      [(component name type #f #f tags) (ppcons name (list (for-type type)))]
+      [(component name type _ _ _) (ppcons name (list (for-type type) (literal "...")))]))
+  (define for-variant
+    (match-lambda [(variant name type tags) (ppcons name (list (for-type type)))]))
+  (define (for-type type)
+    (match type
+      [(asn1-type:any) (literal 'ANY)]
+      [(asn1-type:base name) (literal name)]
+      [(asn1-type:sequence components) (ppcons 'SEQUENCE (map for-component components))]
+      [(asn1-type:sequence-of elt) (ppcons 'SEQUENCE-OF (list (for-type elt)))]
+      [(asn1-type:set components) (ppcons 'SET (map for-component components))]
+      [(asn1-type:set-of elt) (ppcons 'SET-OF (list (for-type elt)))]
+      [(asn1-type:choice variants) (ppcons 'CHOICE (map for-variant variants))]
+      [(asn1-type:implicit-tag tag type)
+       (ppcons 'TAG `(,(literal "#:implicit") ,@(for-tag tag) ,(for-type type)))]
+      [(asn1-type:explicit-tag tag type)
+       (ppcons 'TAG `(,(literal "#:explicit") ,@(for-tag tag) ,(for-type type)))]
+      [(asn1-type:wrap type pre-encode post-decode)
+       (ppcons 'WRAP (list (for-type type) (literal "...")))]
+      [(asn1-type:delay promise)
+       (cond [(hash-ref (visited-types) type #f)
+              (ppcons 'DELAY (list (literal "...")))]
+             [else
+              (parameterize ((visited-types (hash-set (visited-types) type #t)))
+                (ppcons 'DELAY (list (for-type (force promise)))))])]
+      [_ (literal "#<asn1-type>")]))
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (error 'print-asn1-type "internal error in type printer"))])
+    (recur (for-type type))))
 
 ;; ----------------------------------------
 
@@ -61,7 +111,7 @@
 
 ;; A Component is (component Symbol Type MaybeOptional MaybeRefine (Listof Tag/#f))
 ;; - refine can only be non-#f in Sequence types
-(struct component (name type option refine tags) #:transparent)
+(struct component (name type option refine tags))
 
 ;; MaybeOptional is one of
 ;; - (list 'optional)
@@ -111,7 +161,7 @@
 ;; ----------------------------------------
 
 ;; A Variant is (variant Symbol Type (Listof Tag))
-(struct variant (name type tags) #:transparent)
+(struct variant (name type tags))
 
 ;; make-variant : Symbol Type -> Variant
 (define (make-variant name type) (variant name type (type->tags type)))
