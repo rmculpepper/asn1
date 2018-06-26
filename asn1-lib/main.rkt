@@ -72,6 +72,8 @@
          OID
          build-OID
 
+         ANY*
+
          ;; private/base.rkt
          asn1-printable-string?
          ascii-string?
@@ -158,13 +160,16 @@
      #'(asn1-type:set (check-set-components 'SET (list c.e ...)))]))
 
 (define-syntax (CHOICE stx)
+  (define-splicing-syntax-class maybe-overlap
+    (pattern (~seq #:allow-overlap? allow-overlap?:expr))
+    (pattern (~seq) #:with allow-overlap? #''#f))
   (define-syntax-class variant
     (pattern [name:id t:tag-clause type]
              #:declare type (expr/c #'asn1-type?)
              #:with e #'(make-variant 'name (type-add-tag 'CHOICE type.c 't.mode t.e))))
   (syntax-parse stx
-    [(CHOICE v:variant ...)
-     #'(asn1-type:choice (check-choice-variants 'CHOICE (list v.e ...)))]))
+    [(CHOICE :maybe-overlap v:variant ...)
+     #'(asn1-type:choice (check-choice-variants 'CHOICE allow-overlap? (list v.e ...)))]))
 
 (define-syntax TAG
   (syntax-parser
@@ -211,24 +216,23 @@
 
 ;; ============================================================
 
-;;(provide ANY*)
 (define ANY*
   (let ([REC (DELAY ANY*)])
-    (asn1-type:choice
-     (list (make-variant 'boolean BOOLEAN)
-           (make-variant 'integer INTEGER)
-           (make-variant 'bits    BIT-STRING)
-           (make-variant 'octets  OCTET-STRING)
-           (make-variant 'null    NULL)
-           (make-variant 'oid     OBJECT-IDENTIFIER)
-           (make-variant 'rel-oid RELATIVE-OID)
-           (make-variant 'enum    ENUMERATED)
-           (make-variant 'printable PrintableString)
-           (make-variant 'ia5string IA5String)
-           (make-variant 'utf8    UTF8String)
-           (make-variant 'sequence (SEQUENCE-OF REC))
-           (make-variant 'set     (SET-OF REC))
-           (variant      'any     ANY #f)))))
+    (CHOICE #:allow-overlap? #t
+            (boolean    BOOLEAN)
+            (integer    INTEGER)
+            (bits       BIT-STRING)
+            (octets     OCTET-STRING)
+            (null       NULL)
+            (oid        OBJECT-IDENTIFIER)
+            (rel-oid    RELATIVE-OID)
+            (enum       ENUMERATED)
+            (printable  PrintableString)
+            (ia5string  IA5String)
+            (utf8       UTF8String)
+            (sequence   (SEQUENCE-OF REC))
+            (set        (SET-OF REC))
+            (any        ANY))))
 
 ;; ============================================================
 

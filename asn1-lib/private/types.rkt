@@ -167,10 +167,11 @@
 ;; make-variant : Symbol Type -> Variant
 (define (make-variant name type) (variant name type (type->tags type)))
 
-;; check-choice-variants : Symbol (Listof Variant) -> (Listof Variant)
-(define (check-choice-variants who vs)
+;; check-choice-variants : Symbol Boolean (Listof Variant) -> (Listof Variant)
+(define (check-choice-variants who allow-overlap? vs)
   ;; All components of a CHOICE must have distinct tags. (p236)
-  (check-duplicate-tag who (map variant-name vs) (map variant-type vs) "variant")
+  (unless allow-overlap?
+    (check-duplicate-tag who (map variant-name vs) (map variant-type vs) "variant"))
   vs)
 
 ;; variants-name-assq : Symbol (Listof Variant) -> Variant/#f
