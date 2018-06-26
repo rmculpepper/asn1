@@ -179,15 +179,16 @@
 ;; variants-tag-assq : Tag (Listof Variant) -> Variant/#f
 (define (variants-tag-assq tag vs)
   (for/or ([v (in-list vs)])
-    (and (memq tag (variant-tags v)) v)))
+    (let ([vtags (variant-tags v)])
+      (and (or (not vtags) (memq tag vtags)) v))))
 
 ;; ----------------------------------------
 
 ;; type-add-tag : Symbol Type (U 'explicit 'implicit #f) Tag -> Type
-(define (type-add-tag who type mode tag)
+(define (type-add-tag who type mode tag [force? #f])
   (case mode
     [(implicit)
-     (unless (can-implicit-tag? type)
+     (unless (or (can-implicit-tag? type) force?)
        (error who "cannot implicitly tag\n  type: ~e" type))
      (asn1-type:implicit-tag tag type)]
     [(explicit) (asn1-type:explicit-tag tag type)]

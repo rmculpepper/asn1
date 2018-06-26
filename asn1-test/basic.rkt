@@ -88,3 +88,7 @@
 
 (rt (SEQUENCE [a INTEGER] [b #:dependent (cond [(zero? a) INTEGER] [else OCTET-STRING])])
     (hasheq 'a 0 'b 16) (hasheq 'a 1 'b #"abc"))
+
+(rt (SEQUENCE [a INTEGER]
+              [b #:implicit 1 #:dependent (cond [(zero? a) INTEGER] [else OCTET-STRING])])
+    (hasheq 'a 0 'b 16) (hasheq 'a 1 'b #"abc"))

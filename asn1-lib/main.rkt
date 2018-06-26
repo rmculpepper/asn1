@@ -129,7 +129,7 @@
              #:with dep #'#f)
     (pattern [name:id t:tag-clause #:dependent type :option-clause]
              #:declare type (expr/c #'asn1-type?)
-             #:with type0 #'(type-add-tag 'SEQUENCE ANY 't.mode t.e)
+             #:with type0 #'(type-add-tag 'SEQUENCE ANY 't.mode t.e #t)
              #:with dep #'(type-add-tag 'SEQUENCE type.c 't.mode t.e)))
   (define (wrap-refine names dep)
     (syntax-parse dep
