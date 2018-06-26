@@ -160,7 +160,8 @@
 
 ;; ----------------------------------------
 
-;; A Variant is (variant Symbol Type (Listof Tag))
+;; A Variant is (variant Symbol Type (U (Listof Tag) #f))
+;; Tags is always list except for specially-constructed types, eg ANY*.
 (struct variant (name type tags))
 
 ;; make-variant : Symbol Type -> Variant

@@ -211,6 +211,27 @@
 
 ;; ============================================================
 
+;;(provide ANY*)
+(define ANY*
+  (let ([REC (DELAY ANY*)])
+    (asn1-type:choice
+     (list (make-variant 'boolean BOOLEAN)
+           (make-variant 'integer INTEGER)
+           (make-variant 'bits    BIT-STRING)
+           (make-variant 'octets  OCTET-STRING)
+           (make-variant 'null    NULL)
+           (make-variant 'oid     OBJECT-IDENTIFIER)
+           (make-variant 'rel-oid RELATIVE-OID)
+           (make-variant 'enum    ENUMERATED)
+           (make-variant 'printable PrintableString)
+           (make-variant 'ia5string IA5String)
+           (make-variant 'utf8    UTF8String)
+           (make-variant 'sequence (SEQUENCE-OF REC))
+           (make-variant 'set     (SET-OF REC))
+           (variant      'any     ANY #f)))))
+
+;; ============================================================
+
 (begin-for-syntax
  (define-syntax-class OID-component
    (pattern n:nat)
