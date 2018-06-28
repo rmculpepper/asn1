@@ -73,6 +73,7 @@
 ;; read-tag : InputPort -> (values Tag Boolean)
 (define (read-tag in)
   (define tag (read-byte in))
+  (unless (byte? tag) (BER-error "expected tag but got EOF"))
   (define cons? (bitwise-bit-set? tag 5))
   (define tagclass (bits->tagclass (bitwise-bit-field tag 6 8)))
   (define tagnum0 (bitwise-and tag 31))
@@ -92,7 +93,7 @@
   (let loop ([c 0])
     (let ([next (read-byte in)])
       (cond [(eof-object? next)
-             (asn1-error "incomplete tag")]
+             (BER-error "incomplete tag")]
             [(< next 128)
              (+ next (arithmetic-shift c 7))]
             [else
@@ -144,11 +145,12 @@
 ;; read-length* : InputPort -> (U Nat #f (cons Nat Nat))
 (define (read-length* in)
   (let ([l (read-byte in)])
-    (cond [(<= 0 l 127) l]
+    (cond [(eof-object? l) (BER-error "incomplete length")]
+          [(<= 0 l 127) l]
           [else
            (define ll (- l 128))
            (cond [(zero? ll) #f]
-                 [else (cons (read-integer ll #f in) ll)])])))
+                 [else (cons (read-integer ll #f in #:who (asn1-who)) ll)])])))
 
 ;; ----------------------------------------
 
@@ -284,7 +286,7 @@
              (set-box! limitb saved-limit))]
           [(and cons? (not len))
            (read-frames-until-nil in der? limitb)]
-          [else (read-bytes* len in)]))
+          [else (read-bytes* len in #:who (asn1-who))]))
   (BER-frame tag content))
 
 ;; read-frames-until-eof : InputPort Boolean (Box Nat/inf) -> (Listof BER-Frame)
