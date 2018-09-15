@@ -137,7 +137,7 @@
   (define (bad-value expected) (encode-bad base-type v expected))
   (case base-type
     [(BOOLEAN)
-     (unless (boolean? v) (bad-value v 'boolean?))
+     (unless (boolean? v) (bad-value 'boolean?))
      (if v #"\377" #"\0")]
     [(INTEGER)
      (unless (exact-integer? v) (bad-value 'exact-integer?))
@@ -217,9 +217,9 @@
   (match cs
     [(list* c1 c2 cs*)
      (unless (< c1 3)
-       (encode-bad 'OBJECT-IDENTIFIER #:msg "first component too big"))
+       (encode-bad 'OBJECT-IDENTIFIER cs #:msg "first component too big"))
      (unless (< c2 (if (< c1 2) 40 (- 256 80)))
-       (encode-bad 'OBJECT-IDENTIFIER #:msg "second component too big"))
+       (encode-bad 'OBJECT-IDENTIFIER cs #:msg "second component too big"))
      (apply bytes-append
             (bytes (+ (* 40 c1) c2))
             (map encode-oid-component cs*))]
@@ -414,7 +414,7 @@
          (BER-error "tag mismatch decoding constructed base type"
                     "\n  type: ~e\n  expected: ~a\n  decoded: ~a"
                     base-type (display-tag tag) (display-tag f-tag)))
-       (loop f-c)])))
+       (loop f-c onto)])))
 
 ;; sorted? : (Listof X) (X X -> Boolean) -> Boolean
 (define (sorted? xs <?)
@@ -449,7 +449,7 @@
     (unless (<= 0 trailing-unused 7)
       (decode-bad 'BIT-STRING c
                   #:msg "invalid unused bit count"
-                  #:more "\n  unused bits: ~s" trailing-unused))
+                  #:more (format "\n  unused bits: ~s" trailing-unused)))
     (bit-string (subbytes c 1 (bytes-length c))
                 trailing-unused)))
 
