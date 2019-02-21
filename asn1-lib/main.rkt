@@ -1,4 +1,4 @@
-;; Copyright 2014-2018 Ryan Culpepper
+;; Copyright 2014-2019 Ryan Culpepper
 ;; 
 ;; This library is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU Lesser General Public License as published
@@ -20,6 +20,7 @@
          racket/promise
          racket/match
          binaryio/bytes
+         binaryio/unchecked/reader
          "private/base.rkt"
          "private/types.rkt"
          "private/ber.rkt"
@@ -263,11 +264,19 @@
 ;; ============================================================
 
 (define (read-asn1 type [in (current-input-port)]
-                   #:rules [rules 'BER] #:who [who 'read-asn1])
+                   #:incremental? [incremental? #f]
+                   #:check-exhausted? [check-exhausted? #f]
+                   #:rules [rules 'BER]
+                   #:who [who 'read-asn1])
   (with-who who
     (lambda ()
-      (let ([der? (eq? rules 'DER)])
-        (BER-decode type (read-BER-frame in #:der? der?) #:der? der?)))))
+      (define der? (eq? rules 'DER))
+      (define br (make-asn1-binary-reader in))
+      (begin0
+          (cond [incremental? (read/parse-frame br type der?)]
+                [else (decode-frame type (read-frame br der?) der?)])
+        (when check-exhausted? (b-check-exhausted br who "ASN.1 value"))))))
+
 (define (write-asn1 type value [out (current-output-port)]
                     #:rules [rules 'BER] #:who [who 'write-asn1])
   (with-who who
@@ -275,12 +284,12 @@
       (let ([der? (eq? rules 'DER)])
         (write-BER-frame (BER-encode type value #:der? der?) out #:der? der?)))))
 
-(define (bytes->asn1 type b #:rules [rules 'BER] #:who [who 'bytes->asn1])
-  (with-who who
-    (lambda ()
-      (-read/exhaust who "ASN1 value"
-                     (lambda (in) (read-asn1 type in #:rules rules))
-                     (open-input-bytes b)))))
+(define (bytes->asn1 type b
+                     #:incremental? [incremental? #f]
+                     #:rules [rules 'BER]
+                     #:who [who 'bytes->asn1])
+  (read-asn1 type (open-input-bytes b)
+             #:incremental? incremental? #:rules rules #:who who))
 
 (define (asn1->bytes type v #:rules [rules 'BER] #:who [who 'asn1->bytes])
   (with-who who
@@ -297,18 +306,3 @@
   (bytes->asn1 type b #:rules 'DER #:who 'bytes->asn1/DER))
 (define (asn1->bytes/DER type v)
   (asn1->bytes type v #:rules 'DER #:who 'asn1->bytes/DER))
-
-;; ----
-
-;; -read/exhaust : Symbol String/#f (InputPort -> X) [InputPort] -> X
-(define (-read/exhaust who what do-read [in (current-input-port)])
-  (begin0 (do-read in)
-    (-check-input-exhausted who what in)))
-
-;; -check-input-exhausted : Symbol String/#f InputPort -> Void
-(define (-check-input-exhausted who what in)
-  (unless (eof-object? (peek-byte in))
-    (define-values (line col pos) (port-next-location in))
-    (error who "bytes left over~a\n  at: ~a:~a:~a:~a"
-           (if what (format " after reading one ~a" what) "")
-           (object-name in) (or line "") (or col "") (or pos ""))))
