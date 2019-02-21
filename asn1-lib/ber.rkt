@@ -1,4 +1,4 @@
-;; Copyright 2017-2018 Ryan Culpepper
+;; Copyright 2017-2019 Ryan Culpepper
 ;; 
 ;; This library is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU Lesser General Public License as published
@@ -28,7 +28,7 @@
          BER-frame-content
          (contract-out
           [read-BER-frame
-           (->* [] [input-port? #:der? any/c #:limit (or/c exact-nonnegative-integer? +inf.0)]
+           (->* [] [input-port? #:der? any/c #:limit (or/c exact-nonnegative-integer? #f)]
                 BER-frame?)]
           [write-BER-frame
            (->* [BER-frame?] [output-port? #:der? any/c] void?)]
@@ -53,3 +53,11 @@
         (app BER-frame-tag-number tagn)
         (app BER-frame-content content))])
   (make-variable-like-transformer #'make-BER-frame*))
+
+(define (read-BER-frame [in (current-input-port)] #:der? [der? #f] #:limit [limit #f])
+  (define br (make-asn1-binary-reader in #:limit limit))
+  (read-frame br der?))
+
+;; BER-decode : Type BER-Frame Boolean -> Any
+(define (BER-decode type frame #:der? [der? #f])
+  (decode-frame type frame der?))

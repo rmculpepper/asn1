@@ -1,4 +1,4 @@
-;; Copyright 2014-2017 Ryan Culpepper
+;; Copyright 2014-2019 Ryan Culpepper
 ;; 
 ;; This library is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU Lesser General Public License as published
@@ -18,6 +18,7 @@
          racket/struct
          binaryio/integer
          binaryio/bytes
+         binaryio/unchecked/reader
          "base256.rkt"
          "base.rkt")
 (provide (all-defined-out))
@@ -68,37 +69,6 @@
          (let ([q (quotient tagn 128)] [r (remainder tagn 128)])
            (loop q (list r)))))
 
-;; ----
-
-;; read-tag : InputPort -> (values Tag Boolean)
-(define (read-tag in)
-  (define tag (read-byte in))
-  (unless (byte? tag) (BER-error "expected tag but got EOF"))
-  (define cons? (bitwise-bit-set? tag 5))
-  (define tagclass (bits->tagclass (bitwise-bit-field tag 6 8)))
-  (define tagnum0 (bitwise-and tag 31))
-  (define tagnum
-    (if (<= tagnum0 30)
-        tagnum0
-        (let ([tagnum (read-long-tag in)])
-          (unless (> tagnum 30)
-            (BER-error "found long tag form where short form would suffice"
-                       "\n  tag: ~a ~a (~a)"
-                       tagclass tagnum (if cons? 'constructed 'primitive)))
-          tagnum)))
-  (values (make-tag tagclass tagnum) cons?))
-
-;; read-long-tag : InputPort -> Nat
-(define (read-long-tag in)
-  (let loop ([c 0])
-    (let ([next (read-byte in)])
-      (cond [(eof-object? next)
-             (BER-error "incomplete tag")]
-            [(< next 128)
-             (+ next (arithmetic-shift c 7))]
-            [else
-             (loop (+ (- next 128) (arithmetic-shift c 7)))]))))
-
 ;; ============================================================
 ;; Length
 
@@ -122,35 +92,6 @@
            (unless (< (bytes-length nc) 127)
              (BER-error "length too long" "\n  length: ~e" n))
            (bytes-append (bytes (bitwise-ior 128 (bytes-length nc))) nc))]))
-
-;; ----
-
-;; read-length : InputPort Boolean -> (U Nat #f)
-(define (read-length in der?)
-  (match (read-length* in)
-    [(? exact-nonnegative-integer? len)
-     len]
-    [#f
-     (when der? (DER-error "indefinite length encoding"))
-     #f]
-    [(cons len llen)
-     (when (and der? (< len 128))
-       (DER-error "found long definite length encoding where short would suffice"
-                  "\n  length: ~e" len))
-     (when (and der? (< (integer-bytes-length len #f) llen))
-       (DER-error "excess bytes used in long definite length encoding"
-                  "\n  length: ~e\n  bytes used: ~e" len llen))
-     len]))
-
-;; read-length* : InputPort -> (U Nat #f (cons Nat Nat))
-(define (read-length* in)
-  (let ([l (read-byte in)])
-    (cond [(eof-object? l) (BER-error "incomplete length")]
-          [(<= 0 l 127) l]
-          [else
-           (define ll (- l 128))
-           (cond [(zero? ll) #f]
-                 [else (cons (read-integer ll #f in #:who (asn1-who)) ll)])])))
 
 ;; ----------------------------------------
 
@@ -265,56 +206,113 @@
   (void (write-bytes (loop frame) out)))
 
 ;; ----------------------------------------
+;; Reader
 
-;; read-BER-frame : InputPort [Boolean] -> BER-Frame
-(define (read-BER-frame [in (current-input-port)] #:der? [der? #f] #:limit [limit +inf.0])
-  (define limitb (box limit)) ;; FIXME: make parameter for default limit?
-  (read-BER (make-fuel-input-port in limitb) der? limitb))
+;; read-frame-header : BinaryReader Boolean -> (values Tag Boolean (U Nat #f))
+(define (read-frame-header br der?)
 
-;; read-BER : FuelInputPort Boolean (Box Nat/inf) -> BER-Frame
-(define (read-BER in der? limitb)
-  (define-values (tag cons?) (read-tag in))
-  (define len (read-length in der?))
-  (when (and len (> len (unbox limitb)))
-    (BER-error "inner length exceeds limit"
-               "\n  length: ~e\n  limit: ~e" len (unbox limitb)))
-  (define content
-    (cond [(and cons? len)
-           (define saved-limit (- (unbox limitb) len))
-           (set-box! limitb len)
-           (begin0 (read-frames-until-eof in der? limitb)
-             (set-box! limitb saved-limit))]
-          [(and cons? (not len))
-           (read-frames-until-nil in der? limitb)]
-          [else (read-bytes* len in #:who (asn1-who))]))
-  (BER-frame tag content))
+  ;; read-tag : -> (values Tag Boolean)
+  (define (read-tag)
+    (define tag (b-read-byte br))
+    (define cons? (bitwise-bit-set? tag 5))
+    (define tagclass (bits->tagclass (bitwise-bit-field tag 6 8)))
+    (define tagnum0 (bitwise-and tag 31))
+    (define tagnum
+      (if (<= tagnum0 30)
+          tagnum0
+          (let ([tagnum (read-long-tag)])
+            (unless (> tagnum 30)
+              (BER-error "found long tag form where short form would suffice"
+                         "\n  tag: ~a ~a (~a)"
+                         tagclass tagnum (if cons? 'constructed 'primitive)))
+            tagnum)))
+    (values (make-tag tagclass tagnum) cons?))
 
-;; read-frames-until-eof : InputPort Boolean (Box Nat/inf) -> (Listof BER-Frame)
-(define (read-frames-until-eof in der? limitb)
-  (let loop ([acc null])
-    (if (zero? (unbox limitb))
-        (reverse acc)
-        (loop (cons (read-BER in der? limitb) acc)))))
+  ;; read-long-tag : -> Nat
+  (define (read-long-tag)
+    (let loop ([c 0])
+      (let ([next (b-read-byte br)])
+        (cond [(< next 128)
+               (+ next (arithmetic-shift c 7))]
+              [else
+               (loop (+ (- next 128) (arithmetic-shift c 7)))]))))
 
-;; read-frames-until-nil : InputPort Boolean (Box Nat/inf) -> (Listof BER-Frame)
-(define (read-frames-until-nil in der? limitb)
-  (let loop ([acc null])
-    (define next (read-BER in der? limitb))
-    (cond [(nil-frame? next) (reverse acc)]
-          [else (loop (cons next acc))])))
+  ;; read-length : -> (U Nat #f)
+  (define (read-length)
+    (let ([l (b-read-byte br)])
+      (cond [(< l 127) l]
+            [(= l 127) (BER-error "invalid length (reserved encoding)")]
+            [(= l 128) (if der? (DER-error "indefinite length encoding") #f)]
+            [else
+             (let ([ll (- l 128)])
+               (define len (b-read-integer br ll #f))
+               (when der?
+                 (when (< len 128)
+                   (DER-error "found long definite length encoding where short would suffice"
+                              "\n  length: ~e" len))
+                 (when (< (integer-bytes-length len #f) ll)
+                   (DER-error "excess bytes used in long definite length encoding"
+                              "\n  length: ~e\n  bytes used: ~e" len ll)))
+               len)])))
 
-;; ----------------------------------------
+  (define-values (tag cons?) (read-tag))
+  (define len (read-length))
+  (let ([limit (b-get-limit br)])
+    (when (and len limit (> len limit))
+      (BER-error "inner length exceeds limit"
+                 "\n  length: ~e\n  limit: ~e" len (b-get-limit br))))
+  (when (equal? tag nil-tag)
+    (when cons?
+      ;; FIXME
+      (BER-error "nil tag with constructed flag set"))
+    (unless (eqv? len 0)
+      (BER-error "nil tag with non-zero length"
+                 "\n  tag: ~a\n  length: ~s" (display-tag tag) len)))
+  (values tag cons? len))
 
-;; make-fuel-input-port : InputPort (Boxof Nat/+inf.0) -> InputPort
-(define (make-fuel-input-port port fuel)
-  (define (do-read buf)
-    (let ([count (let ([ufuel (unbox fuel)] [buflen (bytes-length buf)])
-                   (if (<= buflen ufuel) buflen ufuel))])
-      (if (zero? count)
-          eof
-          (let ([n (read-bytes-avail!* buf port 0 count)])
-            (cond [(eq? n 0) (wrap-evt port (lambda (x) 0))]
-                  [(number? n) (set-box! fuel (- (unbox fuel) n)) n]
-                  [(procedure? n) (set-box! fuel (sub1 (unbox fuel))) n]
-                  [else n])))))
-  (make-input-port (object-name port) do-read #f void))
+
+;; read-frame : -> BER-Frame
+(define (read-frame br der?)
+
+  ;; read-frame-content : Tag Boolean (U Nat #f) -> BER-Frame
+  (define (read-frame-content tag cons? len)
+    (define content
+      (cond [(and cons? len)
+             (b-push-limit br len)
+             (begin0 (read-frames-until-limit)
+               (b-pop-limit br))]
+            [(and cons? (not len))
+             (read-frames-until-nil)]
+            [else (b-read-bytes br len)]))
+    (BER-frame tag content))
+
+  ;; read-frames-until-limit : -> (Listof BER-Frame)
+  (define (read-frames-until-limit)
+    (let loop ([acc null])
+      (if (zero? (b-get-limit br))
+          (reverse acc)
+          (loop (cons (read-frame) acc)))))
+
+  ;; read-frames-until-nil : -> (Listof BER-Frame)
+  (define (read-frames-until-nil)
+    (let loop ([acc null])
+      (define next (read-frame))
+      (cond [(nil-frame? next) (reverse acc)]
+            [else (loop (cons next acc))])))
+
+  ;; read-frame : -> BER-Frame
+  (define (read-frame)
+    (define-values (tag cons? len) (read-frame-header br der?))
+    (read-frame-content tag cons? len))
+
+  (read-frame))
+
+(define asn1-error-handler
+  (make-binary-reader-error-handler
+   #:error (lambda (br who fmt . args) (apply error (or asn1-who) who fmt args))
+   ;; Since the main client of the asn1 library is the crypto library, default
+   ;; to not showing data in exns.
+   #:show-data? (lambda (br who) #f)))
+
+(define (make-asn1-binary-reader in #:limit [limit #f])
+  (make-binary-reader in #:limit limit #:error-handler asn1-error-handler))
