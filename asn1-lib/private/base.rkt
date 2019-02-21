@@ -71,7 +71,30 @@
     [(#b10) 'context-specific] [(#b11)     'private]))
 
 ;; display-tag : Tag -> String
-(define (display-tag t) (format "~a ~a" (tag-class t) (tag-index t)))
+(define (display-tag t)
+  (format "~a ~a~a" (tag-class t) (tag-index t)
+          (cond [(eq? (tag-class t) 'universal)
+                 (case (tag-index t)
+                   [(1) " (BOOLEAN)"]
+                   [(2) " (INTEGER)"]
+                   [(3) " (BIT STRING)"]
+                   [(4) " (OCTET STRING)"]
+                   [(5) " (NULL)"]
+                   [(6) " (OBJECT IDENTIFIER)"]
+                   [(9) " (REAL)"]
+                   [(10) " (ENUMERATED)"]
+                   [(13) " (RELATIVE OID)"]
+                   [(16) " (SEQUENCE)"]
+                   [(17) " (SET)"]
+                   [(19) " (PrintableString)"]
+                   [(22) " (IA5String)"]
+                   [(23) " (UTCTime)"]
+                   [(28) " (UniversalString)"]
+                   [(30) " (BMPString)"]
+                   [(12) " (UTF8String)"]
+                   [(24) " (GeneralizedTime)"]
+                   [else ""])]
+                [else ""])))
 
 ;; nil-tag : Tag
 (define nil-tag (make-tag 'universal 0))
