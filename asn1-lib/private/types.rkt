@@ -33,7 +33,7 @@
 ;; - (asn1-type:sequence-of Type)
 ;; - (asn1-type:set (list Component ...) (U Symbol #f))
 ;; - (asn1-type:set-of Type)
-;; - (asn1-type:choice (list Variant ...))
+;; - (asn1-type:choice (list Variant ...) (U Symbol #f))
 ;; - (asn1-type:implicit-tag Tag Type)
 ;; - (asn1-type:explicit-tag Tag Type)
 ;; - (asn1-type:wrap Type procedure/#f * 2)
@@ -47,7 +47,7 @@
 (struct asn1-type:sequence-of asn1-type (elt))
 (struct asn1-type:set asn1-type (components ext))
 (struct asn1-type:set-of asn1-type (elt))
-(struct asn1-type:choice asn1-type (variants))
+(struct asn1-type:choice asn1-type (variants ext))
 (struct asn1-type:implicit-tag asn1-type (tag type))
 (struct asn1-type:explicit-tag asn1-type (tag type))
 (struct asn1-type:wrap asn1-type (type pre-encode post-decode))
@@ -86,7 +86,10 @@
                (append (map for-component components)
                        (if ext (list (literal "#:extensible ...")) null)))]
       [(asn1-type:set-of elt) (ppcons 'SET-OF (list (for-type elt)))]
-      [(asn1-type:choice variants) (ppcons 'CHOICE (map for-variant variants))]
+      [(asn1-type:choice variants ext)
+       (ppcons 'CHOICE
+               (append (map for-variant variants)
+                       (if ext (list (literal "#:extensible ...")) null)))]
       [(asn1-type:implicit-tag tag type)
        (ppcons 'TAG `(,(literal "#:implicit") ,@(for-tag tag) ,(for-type type)))]
       [(asn1-type:explicit-tag tag type)
@@ -170,11 +173,10 @@
 ;; make-variant : Symbol Type -> Variant
 (define (make-variant name type) (variant name type (type->tags type)))
 
-;; check-choice-variants : Symbol Boolean (Listof Variant) -> (Listof Variant)
-(define (check-choice-variants who allow-overlap? vs)
+;; check-choice-variants : Symbol (Listof Variant) -> (Listof Variant)
+(define (check-choice-variants who vs)
   ;; All components of a CHOICE must have distinct tags. (p236)
-  (unless allow-overlap?
-    (check-duplicate-tag who (map variant-name vs) (map variant-type vs) "variant"))
+  (check-duplicate-tag who (map variant-name vs) (map variant-type vs) "variant")
   vs)
 
 ;; variants-name-assq : Symbol (Listof Variant) -> Variant/#f
@@ -204,7 +206,7 @@
 (define (can-implicit-tag? type)
   (match type
     [(asn1-type:any) #f]
-    [(asn1-type:choice _) #f]
+    [(asn1-type:choice _ _) #f]
     [(asn1-type:wrap type _ _) (can-implicit-tag? type)]
     [(asn1-type:delay promise) (can-implicit-tag? (force promise))]
     [_ #t]))
@@ -223,7 +225,8 @@
     [(asn1-type:sequence-of _) (list (base-type-tag 'SEQUENCE))]
     [(asn1-type:set _ _) (list (base-type-tag 'SET))]
     [(asn1-type:set-of _) (list (base-type-tag 'SET))]
-    [(asn1-type:choice vs)
+    [(asn1-type:choice vs ext)
+     ;; FIXME: if ext, return #f? (ASN.1 has more complicated rule, IIRC)
      (apply append (for/list ([v (in-list vs)]) (type->tags (variant-type v))))]
     [(asn1-type:implicit-tag tag type) (list tag)]
     [(asn1-type:explicit-tag tag type) (list tag)]

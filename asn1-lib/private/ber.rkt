@@ -94,13 +94,18 @@
               [c-frames (if der? (sort (map frame->DER c-frames) bytes<?) c-frames)])
          ;; FIXME: detect duplicates?
          (frame 'SET c-frames alt-tag))]
-      [(asn1-type:choice variants)
+      [(asn1-type:choice variants ext)
        (match v
          [(list (? symbol? sym) v*)
-          (match (variants-name-assq sym variants)
-            [(variant _ type* _) (encode-frame type* v* #f)]
-            [_ (encode-bad type v '(list/c symbol? any/c)
-                           #:msg "symbol tag does not match any variant name")])]
+          (cond [(variants-name-assq sym variants)
+                 => (lambda (var)
+                      (match var [(variant _ type* _) (encode-frame type* v* #f)]))]
+                [(and ext (eq? sym ext))
+                 (unless (BER-frame? v*)
+                   (encode-bad 'ANY v* 'BER-frame? #:msg "bad value for extension variant"))
+                 v*]
+                [else (encode-bad type v '(list/c symbol? any/c)
+                                  #:msg "symbol tag does not match any variant name")])]
          [_ (encode-bad type v '(list/c symbol? any/c))])]
       [(asn1-type:implicit-tag tag* type*)
        ;; Outer implicit tag takes precedence; prefer alt-tag
@@ -344,12 +349,14 @@
            (begin (check-tag (base-type-tag 'SET)) (check/need-cons?))
            ;; FIXME: in DER, elements must be sorted
            (parse-frames (content-frames self cont) (mk-parse-frame type*))]
-          [(asn1-type:choice variants)
+          [(asn1-type:choice variants ext)
            (match (variants-tag-assq tag variants)
              [(variant name type* _)
               (list name (loop type* #f))]
-             [_ (asn1-error "decoded tag does not match any variant\n  tag: ~a\n  type: ~e"
-                            (display-tag tag) type)])]
+             [_ (if ext
+                    (list ext (parse-any frame))
+                    (BER-error "unknown variant for non-extensible CHOICE"
+                               "\n  tag: ~a\n  type: ~e" (display-tag tag) type))])]
           [(asn1-type:implicit-tag want-tag type*)
            (check-tag want-tag)
            (loop type* #f)]
