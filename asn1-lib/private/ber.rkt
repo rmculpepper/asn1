@@ -267,9 +267,9 @@
          content-frames ;; Self Content -o Frames, PRE: (content-cons? cont)
          content-prim ;; Self Content -o Bytes, PRE: (not (content-cons? cont))
          frames-next ;; Self Frames -o (U null (cons Frame Frames))
-         #:parse-frames* [parse-frames* #f]
-         #:parse-frames/expect-one* [parse-frames/expect-one* #f]
-         #:parse-any* [parse-any* #f])
+
+         ;; frame-is-data? implies Frame = BER-Frame, Frames = (Listof BER-Frame)
+         #:frame-is-data? [frame-is-data? #f])
 
   (lambda (self type init)
 
@@ -352,7 +352,7 @@
            (loop type* #f)]
           [(asn1-type:explicit-tag want-tag type*)
            (begin (check-tag want-tag) (check/need-cons?))
-           (parse-frames/expect-one
+           (parse-frames/one
             (content-frames self cont) (mk-parse-frame type*)
             (lambda ()
               (BER-error "expected single frame for explicitly tagged contents"
@@ -367,8 +367,8 @@
 
     ;; parse-any : Frame -o BER-frame
     (define (parse-any frame)
-      (if parse-any*
-          (parse-any* self frame)
+      (if frame-is-data?
+          frame
           (let loop ([frame frame])
             (define tag (frame-tag frame))
             (define cont (frame-cont frame))
@@ -378,21 +378,23 @@
 
     ;; parse-frames : Frames (Frame -o X) -o (listof X)
     (define (parse-frames frames parse)
-      (if parse-frames*
-          (parse-frames* self frames parse)
+      (if frame-is-data?
+          (map parse frames)
           (let loop ([acc null] [frames frames])
             (match (frames-next self frames)
               ['() (reverse acc)]
               [(cons frame frames)
                (loop (cons (parse frame) acc) frames)]))))
 
-    ;; parse-frames/expect-one : Frames (Tag Content -o X) (-> escape) -o X
-    (define (parse-frames/expect-one frames parse on-not-one)
-      (match (frames-next self frames)
-        ['() (on-not-one)]
-        [(cons frame1 frames1)
-         (begin0 (parse frame1)
-           (unless (null? (frames-next self frames1)) (on-not-one)))]))
+    ;; parse-frames/one : Frames (Frame -o X) (-> escape) -o X
+    (define (parse-frames/one frames parse on-not-one)
+      (if frame-is-data?
+          (match frames [(list frame) (parse frame)] [_ (on-not-one)])
+          (match (frames-next self frames)
+            ['() (on-not-one)]
+            [(cons frame1 frames1)
+             (begin0 (parse frame1)
+               (unless (null? (frames-next self frames1)) (on-not-one)))])))
 
     ;; parse-sequence : Type (Listof Component) Frames -> Hasheq[Symbol => Value]
     (define (parse-sequence type cts frames)
@@ -558,17 +560,6 @@
   (define (content-prim self content) content)
   (define (frames-next self frames) frames)
 
-  ;; parse-frames* : Self Frames (Frame -o X) -o (listof X)
-  (define (parse-frames* self frames parse)
-    (for/list ([frame (in-list frames)]) (parse frame)))
-
-  ;; parse-frames/expect-one* : Self Frames (Frame -o X) (-> escape) -o X
-  (define (parse-frames/expect-one* self frames parse on-not-one)
-    (match frames [(list frame) (parse frame)] [_ (on-not-one)]))
-
-  ;; parse-any : Self Tag Content -o BER-frame
-  (define (parse-any* self frame) frame)
-
   (make-parse-frame der?
                     initialize
                     frame-tag
@@ -577,9 +568,7 @@
                     content-frames
                     content-prim
                     frames-next
-                    #:parse-frames* parse-frames*
-                    #:parse-frames/expect-one* parse-frames/expect-one*
-                    #:parse-any* parse-any*))
+                    #:frame-is-data? #t))
 
 (define decode-ber (make-decoder #f))
 (define decode-der (make-decoder #t))
