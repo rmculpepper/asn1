@@ -55,10 +55,7 @@
 
 ;; Custom printing for types
 (define visited-types (make-parameter (hasheq)))
-(define ((litp f) self out mode) (fprintf out "~a" (f self)))
-(struct literal (s)
-  #:property prop:custom-print-quotable 'never
-  #:property prop:custom-write (litp (lambda (x) (literal-s x))))
+(define (literal s) (unquoted-printing-string (format "~a" s)))
 (struct ppcons (c vs)
   #:property prop:custom-print-quotable 'never
   #:property prop:custom-write
