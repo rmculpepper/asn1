@@ -167,16 +167,13 @@
      #'(asn1-type:set (check-set-components 'SET (list c.e ...)) 'e.ext)]))
 
 (define-syntax (CHOICE stx)
-  (define-splicing-syntax-class maybe-overlap
-    (pattern (~seq #:allow-overlap? allow-overlap?:expr))
-    (pattern (~seq) #:with allow-overlap? #''#f))
   (define-syntax-class variant
     (pattern [name:id t:tag-clause type]
              #:declare type (expr/c #'asn1-type?)
              #:with e #'(make-variant 'name (type-add-tag 'CHOICE type.c 't.mode t.e))))
   (syntax-parse stx
-    [(CHOICE :maybe-overlap v:variant ...)
-     #'(asn1-type:choice (check-choice-variants 'CHOICE allow-overlap? (list v.e ...)))]))
+    [(CHOICE v:variant ... e:extensible)
+     #'(asn1-type:choice (check-choice-variants 'CHOICE (list v.e ...)) 'e.ext)]))
 
 (define-syntax TAG
   (syntax-parser
@@ -225,8 +222,7 @@
 
 (define ANY*
   (let ([REC (DELAY ANY*)])
-    (CHOICE #:allow-overlap? #t
-            (boolean    BOOLEAN)
+    (CHOICE (boolean    BOOLEAN)
             (integer    INTEGER)
             (bits       BIT-STRING)
             (octets     OCTET-STRING)
@@ -239,7 +235,7 @@
             (utf8       UTF8String)
             (sequence   (SEQUENCE-OF REC))
             (set        (SET-OF REC))
-            (any        ANY))))
+            #:extensible any)))
 
 ;; ============================================================
 
