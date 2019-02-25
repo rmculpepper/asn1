@@ -19,6 +19,7 @@
          binaryio/integer
          binaryio/bytes
          binaryio/unchecked/reader
+         binaryio/unchecked/fixup-port
          "base256.rkt"
          "base.rkt")
 (provide (all-defined-out))
@@ -132,7 +133,7 @@
 
 ;; write-frame : BER-Frame OutputPort Boolean -> Void
 (define (write-frame frame out der?)
-  (cond [der? (write-frame/definite frame out)]
+  (cond [der? (write-frame/definite/fixer frame out)]
         [else (write-frame/indefinite frame out)]))
 
 ;; write-frame/indefinite : BER-Frame OutputPort -> Void
@@ -202,6 +203,42 @@
                   (length->bytes (bytes-length content-bytes))
                   content-bytes))
   (void (write-bytes (loop frame) out)))
+
+;; write-frame/definite/fixer : BER-Frame OutputPort -> Void
+;; Write frame using definite length encoding for constructed parts.
+(define (write-frame/definite/fixer frame out)
+  (define fx (open-fixup-port))
+
+  (define (write-tag tag tagcons?)
+    (define-values (tagclass tagn) (tag->class+index tag))
+    (cond [(<= tagn 30)
+           (write-byte (+ (arithmetic-shift (tagclass->bits tagclass) 6)
+                          (if tagcons? #b00100000 0)
+                          tagn)
+                       fx)]
+          [else (write-bytes (tag->bytes tag tagcons?) fx)]))
+
+  (define (write-length n)
+    (cond [(<= 0 n 127) (write-byte n fx)]
+          [else (write-bytes (length->bytes n) fx)]))
+
+  ;; loop : (U Bytes BER-Frame) -> Bytes
+  (define (loop frame)
+    (match frame
+      [(? bytes?)
+       (write-bytes frame fx)]
+      [(BER-frame tag (? bytes? content))
+       (write-tag tag #f)
+       (write-length (bytes-length content))
+       (write-bytes content fx)]
+      [(BER-frame tag (? list? content))
+       (write-tag tag #t)
+       (push-fixup fx)
+       (for ([frame (in-list content)]) (loop frame))
+       (pop-fixup fx length->bytes)]))
+  (loop frame)
+  (fixup-port-flush fx out))
+
 
 ;; ----------------------------------------
 ;; Reader
