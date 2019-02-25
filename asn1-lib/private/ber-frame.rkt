@@ -130,14 +130,14 @@
 
 ;; ----------------------------------------
 
-;; write-BER-frame : BER-Frame [OutputPort] -> Void
-(define (write-BER-frame frame [out (current-output-port)] #:der? [der? #f])
-  (cond [der? (write-BER-frame/definite frame out)]
-        [else (write-BER-frame/indefinite frame out)]))
+;; write-frame : BER-Frame OutputPort Boolean -> Void
+(define (write-frame frame out der?)
+  (cond [der? (write-frame/definite frame out)]
+        [else (write-frame/indefinite frame out)]))
 
-;; write-BER-frame/indefinite : BER-Frame [OutputPort] -> Void
+;; write-frame/indefinite : BER-Frame OutputPort -> Void
 ;; Write frame using indefinite length encoding for constructed parts.
-(define (write-BER-frame/indefinite frame [out (current-output-port)])
+(define (write-frame/indefinite frame out)
   ;; write-frame : BER-Frame -> Void
   (define (write-frame frame)
     (match-define (BER-frame tag content) frame)
@@ -152,9 +152,9 @@
            (write-bytes #"\0\0" out)]))
   (void (write-frame frame)))
 
-;; write-BER-frame/definite : BER-Frame [OutputPort] -> Void
+;; write-frame/definite : BER-Frame OutputPort -> Void
 ;; Write frame using definite length encoding for constructed parts.
-(define (write-BER-frame/definite frame [out (current-output-port)])
+(define (write-frame/definite frame out)
   (define content->length (make-caching-content->length))
   ;; write-frame : BER-Frame -> Void
   (define (write-frame frame)
@@ -168,10 +168,12 @@
              (if (bytes? frame) (write-bytes frame out) (write-frame frame)))]))
   (void (write-frame frame)))
 
-;; make-caching-content->length : -> (U Bytes (Listof (U Bytes BER-Frame))) -> Nat
+;; make-caching-content->length : -> FrameContents -> Nat
 ;; Computes length of content assuming inner frames use definite length encoding.
 (define (make-caching-content->length)
   (define lencache (make-hasheq)) ;; BER-Frame => Nat (length)
+  (define (frame-prefix-length tag len)
+    (+ (bytes-length (tag->bytes tag #f)) (bytes-length (length->bytes len))))
   (define (content->length c)
     (match c
       [(? bytes?) (bytes-length c)]
@@ -184,13 +186,9 @@
                       (+ (frame-prefix-length f-tag inner-len) inner-len))))]))
   content->length)
 
-;; frame-prefix-length : Tag Nat -> Nat
-(define (frame-prefix-length tag len)
-  (+ (bytes-length (tag->bytes tag #f)) (bytes-length (length->bytes len))))
-
-;; write-BER-frame/naive : BER-Frame [OutputPort] -> Void
+;; write-frame/definite/naive : BER-Frame OutputPort -> Void
 ;; Write frame using definite length encoding for constructed parts.
-(define (write-BER-frame/naive frame [out (current-output-port)])
+(define (write-frame/definite/naive frame out)
   ;; loop : BER-Frame -> Bytes
   (define (loop frame)
     (match-define (BER-frame tag content) frame)
@@ -207,6 +205,10 @@
 
 ;; ----------------------------------------
 ;; Reader
+
+;; The BER-Frames produced by the reader (`read-frame`) have a restricted shape:
+;;
+;; FrameContents = (U Bytes (Listof BER-Frame))
 
 ;; read-frame-header : BinaryReader Boolean -> (values Tag Boolean (U Nat #f))
 (define (read-frame-header br der?)
