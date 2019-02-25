@@ -54,6 +54,9 @@
         (app BER-frame-content content))])
   (make-variable-like-transformer #'make-BER-frame*))
 
+(define (write-BER-frame frame [out (current-output-port)] #:der? [der? #f])
+  (write-frame frame out der?))
+
 (define (read-BER-frame [in (current-input-port)] #:der? [der? #f] #:limit [limit #f])
   (define br (make-asn1-binary-reader in #:limit limit))
   (read-frame br der?))

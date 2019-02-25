@@ -284,7 +284,7 @@
   (with-who who
     (lambda ()
       (let ([der? (eq? rules 'DER)])
-        (write-BER-frame (BER-encode type value #:der? der?) out #:der? der?)))))
+        (write-frame (BER-encode type value #:der? der?) out der?)))))
 
 (define (bytes->asn1 type b
                      #:incremental? [incremental? #f]

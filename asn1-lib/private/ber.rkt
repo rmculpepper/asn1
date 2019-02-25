@@ -122,7 +122,7 @@
   ;; encode-components : (listof Component) Symbol/#f Hash[Symbol => Any] Symbol
   ;;                  -> (listof BER-Frame)
   (define (encode-components cts ext h kind)
-    ;; FIXME: check for unexpected fields?
+    ;; Note: unexpected fields are ignored
     (filter values
             (append (for/list ([ct (in-list cts)]) (encode-component ct h kind))
                     (if ext (hash-ref h ext null) null))))
@@ -190,7 +190,7 @@
 ;; frame->DER : BER-Frame -> Bytes
 (define (frame->DER frame)
   (define out (open-output-bytes))
-  (write-BER-frame frame out #:der? #t)
+  (write-frame/definite frame out)
   (get-output-bytes out))
 
 ;; ----------------------------------------
