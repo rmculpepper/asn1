@@ -301,85 +301,80 @@
     (define (parse-init type init)
       (parse-frame type (initialize self init)))
 
-    ;; parse-frame : Type Frame -o Value
-    ;; Reads a BER frame and decodes it according to given type.
-    (define (parse-frame type frame)
-      (parse-cont type #t (frame-tag frame) (frame-cont frame)))
-
     ;; mk-parse-frame : Type -> Tag Content -o Value
     (define ((mk-parse-frame type) frame)
       (parse-frame type frame))
 
-    ;; parse-cont : Type Boolean Tag Content -o Value
-    (define (parse-cont type check-tag? tag cont)
-      (define (loop type check-tag?)
-        (parse-cont type check-tag? tag cont))
+    ;; parse-frame : Type Frame -o Value
+    ;; Reads a BER frame and decodes it according to given type.
+    (define (parse-frame type frame)
+      (define tag (frame-tag frame))
+      (define cont (frame-cont frame))
       (define cons? (content-cons? cont))
-      (define (check-tag want-tag)
-        (when (and check-tag? (not (equal? tag want-tag)))
-          (asn1-error "tag mismatch\n  expected: ~a\n  decoded: ~a"
-                      (display-tag want-tag) (display-tag tag))))
-      (define (check-cons? base-type)
-        (unless (base-type-cons-ok? base-type der? cons?)
-          (asn1-error "expected ~a encoding\n  type: ~e"
-                      (if cons? "primitive" "constructed") type)))
-      (define (check/need-cons?)
-        (unless cons? (asn1-error "expected constructed encoding\n  type: ~e" type)))
-      (match type
-        [(asn1-type:any)
-         (parse-any tag cont)]
-        [(asn1-type:base base-type)
-         (begin (check-tag (base-type-tag base-type)) (check-cons? base-type))
-         (parse-base base-type cont)]
-        [(asn1-type:sequence components)
-         (begin (check-tag (base-type-tag 'SEQUENCE)) (check/need-cons?))
-         (parse-sequence type components (content-frames self cont))]
-        [(asn1-type:sequence-of type*)
-         (begin (check-tag (base-type-tag 'SEQUENCE)) (check/need-cons?))
-         (parse-frames (content-frames self cont) (mk-parse-frame type*))]
-        [(asn1-type:set components)
-         (begin (check-tag (base-type-tag 'SET)) (check/need-cons?))
-         (parse-set type components (content-frames self cont))]
-        [(asn1-type:set-of type*)
-         (begin (check-tag (base-type-tag 'SET)) (check/need-cons?))
-         ;; FIXME: in DER, elements must be sorted
-         (parse-frames (content-frames self cont) (mk-parse-frame type*))]
-        [(asn1-type:choice variants)
-         (match (variants-tag-assq tag variants)
-           [(variant name type* _)
-            (list name (loop type* #f))]
-           [_ (asn1-error "decoded tag does not match any variant\n  tag: ~a\n  type: ~e"
-                          (display-tag tag) type)])]
-        [(asn1-type:implicit-tag want-tag type*)
-         (check-tag want-tag)
-         (loop type* #f)]
-        [(asn1-type:explicit-tag want-tag type*)
-         (begin (check-tag want-tag) (check/need-cons?))
-         (parse-frames/expect-one
-          (content-frames self cont) (mk-parse-frame type*)
-          (lambda ()
-            (BER-error "expected single frame for explicitly tagged contents"
-                       "\n  type: ~e" type)))]
-        [(asn1-type:wrap type* _ post-decode)
-         (if post-decode
-             (post-decode (loop type* check-tag?))
-             (loop type* check-tag?))]
-        [(asn1-type:delay promise)
-         (loop (force promise) check-tag?)]
-        ))
+      (let loop ([type type] [check-tag? #t])
+        (define (check-tag want-tag)
+          (when (and check-tag? (not (equal? tag want-tag)))
+            (asn1-error "tag mismatch\n  expected: ~a\n  decoded: ~a"
+                        (display-tag want-tag) (display-tag tag))))
+        (define (check-cons? base-type)
+          (unless (base-type-cons-ok? base-type der? cons?)
+            (asn1-error "expected ~a encoding\n  type: ~e"
+                        (if cons? "primitive" "constructed") type)))
+        (define (check/need-cons?)
+          (unless cons? (asn1-error "expected constructed encoding\n  type: ~e" type)))
+        (match type
+          [(asn1-type:any)
+           (parse-any frame)]
+          [(asn1-type:base base-type)
+           (begin (check-tag (base-type-tag base-type)) (check-cons? base-type))
+           (parse-base base-type cont)]
+          [(asn1-type:sequence components)
+           (begin (check-tag (base-type-tag 'SEQUENCE)) (check/need-cons?))
+           (parse-sequence type components (content-frames self cont))]
+          [(asn1-type:sequence-of type*)
+           (begin (check-tag (base-type-tag 'SEQUENCE)) (check/need-cons?))
+           (parse-frames (content-frames self cont) (mk-parse-frame type*))]
+          [(asn1-type:set components)
+           (begin (check-tag (base-type-tag 'SET)) (check/need-cons?))
+           (parse-set type components (content-frames self cont))]
+          [(asn1-type:set-of type*)
+           (begin (check-tag (base-type-tag 'SET)) (check/need-cons?))
+           ;; FIXME: in DER, elements must be sorted
+           (parse-frames (content-frames self cont) (mk-parse-frame type*))]
+          [(asn1-type:choice variants)
+           (match (variants-tag-assq tag variants)
+             [(variant name type* _)
+              (list name (loop type* #f))]
+             [_ (asn1-error "decoded tag does not match any variant\n  tag: ~a\n  type: ~e"
+                            (display-tag tag) type)])]
+          [(asn1-type:implicit-tag want-tag type*)
+           (check-tag want-tag)
+           (loop type* #f)]
+          [(asn1-type:explicit-tag want-tag type*)
+           (begin (check-tag want-tag) (check/need-cons?))
+           (parse-frames/expect-one
+            (content-frames self cont) (mk-parse-frame type*)
+            (lambda ()
+              (BER-error "expected single frame for explicitly tagged contents"
+                         "\n  type: ~e" type)))]
+          [(asn1-type:wrap type* _ post-decode)
+           (if post-decode
+               (post-decode (loop type* check-tag?))
+               (loop type* check-tag?))]
+          [(asn1-type:delay promise)
+           (loop (force promise) check-tag?)]
+          )))
 
-    ;; parse-any : Tag Content -o BER-frame
-    (define (parse-any tag cont)
+    ;; parse-any : Frame -o BER-frame
+    (define (parse-any frame)
       (if parse-any*
-          (parse-any* self tag cont)
-          (let ()
-            (define (frame-loop frame)
-              (loop (frame-tag frame) (frame-cont frame)))
-            (define (loop tag cont)
-              (cond [(content-cons? cont)
-                     (BER-frame tag (parse-frames (content-frames self cont) frame-loop))]
-                    [else (BER-frame tag (content-prim self cont))]))
-            (loop tag cont))))
+          (parse-any* self frame)
+          (let loop ([frame frame])
+            (define tag (frame-tag frame))
+            (define cont (frame-cont frame))
+            (cond [(content-cons? cont)
+                   (BER-frame tag (parse-frames (content-frames self cont) loop))]
+                  [else (BER-frame tag (content-prim self cont))]))))
 
     ;; parse-frames : Frames (Frame -o X) -o (listof X)
     (define (parse-frames frames parse)
@@ -416,7 +411,7 @@
              (define tag (frame-tag frame))
              (cond [(or (member tag ct-tags) (memq #f ct-tags))
                     (define ct-type (if ct-refine (ct-refine h) ct-type0))
-                    (define value (parse-cont ct-type #t tag (frame-cont frame)))
+                    (define value (parse-frame ct-type frame))
                     (check-explicit-default ct-name ct-option value type)
                     (values (frames-next self frames) (hash-set h ct-name value))]
                    [else (try-skip)])])))
@@ -443,7 +438,7 @@
                          (when (hash-has-key? h ct-name)
                            (BER-error "duplicate field in SET"
                                       "\n  type: ~e\n  component: ~e" type ct-name))
-                         (define value (parse-cont ct-type #t tag (frame-cont frame)))
+                         (define value (parse-frame ct-type frame))
                          (loop (frames-next self frames) (hash-set h ct-name value) tag))]
                    [else ;; FIXME: not an error if extension marker!
                     (BER-error "unknown field in SET" "\n type: ~e" type)])])))
@@ -572,8 +567,7 @@
     (match frames [(list frame) (parse frame)] [_ (on-not-one)]))
 
   ;; parse-any : Self Tag Content -o BER-frame
-  (define (parse-any* self tag cont)
-    (BER-frame tag cont))
+  (define (parse-any* self frame) frame)
 
   (make-parse-frame der?
                     initialize
