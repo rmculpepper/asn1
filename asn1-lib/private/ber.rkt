@@ -73,19 +73,19 @@
       [(asn1-type:base base-type)
        (let ([c (BER-encode-base base-type v)])
          (frame base-type c alt-tag))]
-      [(asn1-type:sequence cts)
+      [(asn1-type:sequence cts ext)
        (unless (and (hash? v) (for/and ([key (in-hash-keys v)]) (symbol? key)))
          (encode-bad type v '(hash/c symbol? any/c)))
-       (let ([c (encode-components cts v 'Sequence)])
+       (let ([c (encode-components cts ext v 'Sequence)])
          (frame 'SEQUENCE c alt-tag))]
       [(asn1-type:sequence-of type*)
        (unless (list? v) (encode-bad type v 'list?))
        (let ([c (for/list ([elem (in-list v)]) (encode-frame type* elem #f))])
          (frame 'SEQUENCE c alt-tag))]
-      [(asn1-type:set components)
+      [(asn1-type:set components ext)
        (unless (and (hash? v) (for/and ([key (in-hash-keys v)]) (symbol? key)))
          (encode-bad type v '(hash/c symbol? any/c)))
-       (let* ([c-frames (encode-components components v 'Set)]
+       (let* ([c-frames (encode-components components ext v 'Set)]
               [c-frames (if der? (sort c-frames BER-frame/tag<?) c-frames)])
          (frame 'SET c-frames alt-tag))]
       [(asn1-type:set-of type*)
@@ -114,10 +114,13 @@
        (encode-frame (force promise) v alt-tag)]
       [_ (error 'BER-encode "internal error: unknown type: ~e" type)]))
 
-  ;; encode-components : (listof Component) Hash[Symbol => Any] Symbol -> (listof BER-Frame)
-  (define (encode-components cts h kind)
+  ;; encode-components : (listof Component) Symbol/#f Hash[Symbol => Any] Symbol
+  ;;                  -> (listof BER-Frame)
+  (define (encode-components cts ext h kind)
     ;; FIXME: check for unexpected fields?
-    (filter values (for/list ([ct (in-list cts)]) (encode-component ct h kind))))
+    (filter values
+            (append (for/list ([ct (in-list cts)]) (encode-component ct h kind))
+                    (if ext (hash-ref h ext null) null))))
 
   ;; encode-component : Component Hash[Symbol => Any] Symbol -> BER-Frame/#f
   (define (encode-component ct h kind)
@@ -328,15 +331,15 @@
           [(asn1-type:base base-type)
            (begin (check-tag (base-type-tag base-type)) (check-cons? base-type))
            (parse-base base-type cont)]
-          [(asn1-type:sequence components)
+          [(? asn1-type:sequence?)
            (begin (check-tag (base-type-tag 'SEQUENCE)) (check/need-cons?))
-           (parse-sequence type components (content-frames self cont))]
+           (parse-sequence type (content-frames self cont))]
           [(asn1-type:sequence-of type*)
            (begin (check-tag (base-type-tag 'SEQUENCE)) (check/need-cons?))
            (parse-frames (content-frames self cont) (mk-parse-frame type*))]
-          [(asn1-type:set components)
+          [(? asn1-type:set?)
            (begin (check-tag (base-type-tag 'SET)) (check/need-cons?))
-           (parse-set type components (content-frames self cont))]
+           (parse-set type (content-frames self cont))]
           [(asn1-type:set-of type*)
            (begin (check-tag (base-type-tag 'SET)) (check/need-cons?))
            ;; FIXME: in DER, elements must be sorted
@@ -364,6 +367,7 @@
           [(asn1-type:delay promise)
            (loop (force promise) check-tag?)]
           )))
+
 
     ;; parse-any : Frame -o BER-frame
     (define (parse-any frame)
@@ -396,8 +400,9 @@
              (begin0 (parse frame1)
                (unless (null? (frames-next self frames1)) (on-not-one)))])))
 
-    ;; parse-sequence : Type (Listof Component) Frames -> Hasheq[Symbol => Value]
-    (define (parse-sequence type cts frames)
+    ;; parse-sequence : Type Frames -> Hasheq[Symbol => Value]
+    (define (parse-sequence type frames)
+      (match-define (asn1-type:sequence cts ext) type)
       (define-values (lframes h)
         (for/fold ([lframes (frames-next self frames)] [h (hasheq)]) ([ct (in-list cts)])
           (match-define (component ct-name ct-type0 ct-option ct-refine ct-tags) ct)
@@ -417,19 +422,24 @@
                     (check-explicit-default ct-name ct-option value type)
                     (values (frames-next self frames) (hash-set h ct-name value))]
                    [else (try-skip)])])))
-      ;; FIXME: only error if SEQUENCE not marked extensible...
-      (unless (null? lframes)
-        (BER-error "leftover components in encoded SEQUENCE" "\n  type: ~e" type))
-      h)
+      (cond [(null? lframes) h]
+            [ext ;; grab unknown frames
+             (let loop ([lframes lframes] [un null])
+               (match lframes
+                 ['() (hash-set h ext (reverse un))]
+                 [(cons frame frames)
+                  (loop frames (cons (parse-any frame) un))]))]
+            [else (BER-error "unknown field in non-extensible SEQUENCE" "\n  type: ~e" type)]))
 
-    ;; parse-set : Type (Listof Component) Frames -> Hasheq[Symbol => Value]
-    (define (parse-set type cts frames)
+    ;; parse-set : Type Frames -> Hasheq[Symbol => Value]
+    (define (parse-set type frames)
+      (match-define (asn1-type:set cts ext) type)
       (define (find-ct/tag tag)
         (for/first ([ct (in-list cts)] #:when (member tag (component-tags ct))) ct))
       (define h
-        (let loop ([lframes (frames-next self frames)] [h (hasheq)] [prev-tag #f])
+        (let loop ([lframes (frames-next self frames)] [h (hasheq)] [prev-tag #f] [un null])
           (match lframes
-            ['() h]
+            ['() (if (pair? un) (hash-set h ext (reverse un)) h)]
             [(cons frame frames)
              (define tag (frame-tag frame))
              (cond [(and der? prev-tag (not (tag<? prev-tag tag)))
@@ -441,9 +451,12 @@
                            (BER-error "duplicate field in SET"
                                       "\n  type: ~e\n  component: ~e" type ct-name))
                          (define value (parse-frame ct-type frame))
-                         (loop (frames-next self frames) (hash-set h ct-name value) tag))]
-                   [else ;; FIXME: not an error if extension marker!
-                    (BER-error "unknown field in SET" "\n type: ~e" type)])])))
+                         (loop (frames-next self frames) (hash-set h ct-name value) tag un))]
+                   [ext
+                    (define value (parse-any frame))
+                    (loop (frames-next self frames) h (frame-tag frame) (cons value un))]
+                   [else
+                    (BER-error "unknown field in non-extensible SET" "\n type: ~e" type)])])))
       (for/fold ([h h]) ([ct (in-list cts)] #:when (not (hash-has-key? h (component-name ct))))
         (match-define (component ct-name ct-type ct-option _ _) ct)
         (match ct-option

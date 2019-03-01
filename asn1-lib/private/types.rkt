@@ -29,9 +29,9 @@
 ;; Type is one of
 ;; - (asn1-type:any)
 ;; - (asn1-type:base Symbol)
-;; - (asn1-type:sequence (list Component ...))
+;; - (asn1-type:sequence (list Component ...) (U Symbol #f))
 ;; - (asn1-type:sequence-of Type)
-;; - (asn1-type:set (list Component ...))
+;; - (asn1-type:set (list Component ...) (U Symbol #f))
 ;; - (asn1-type:set-of Type)
 ;; - (asn1-type:choice (list Variant ...))
 ;; - (asn1-type:implicit-tag Tag Type)
@@ -43,9 +43,9 @@
   #:property prop:custom-print-quotable 'never)
 (struct asn1-type:any asn1-type ())
 (struct asn1-type:base asn1-type (name))
-(struct asn1-type:sequence asn1-type (components))
+(struct asn1-type:sequence asn1-type (components ext))
 (struct asn1-type:sequence-of asn1-type (elt))
-(struct asn1-type:set asn1-type (components))
+(struct asn1-type:set asn1-type (components ext))
 (struct asn1-type:set-of asn1-type (elt))
 (struct asn1-type:choice asn1-type (variants))
 (struct asn1-type:implicit-tag asn1-type (tag type))
@@ -76,9 +76,15 @@
     (match type
       [(asn1-type:any) (literal 'ANY)]
       [(asn1-type:base name) (literal name)]
-      [(asn1-type:sequence components) (ppcons 'SEQUENCE (map for-component components))]
+      [(asn1-type:sequence components ext)
+       (ppcons 'SEQUENCE
+               (append (map for-component components)
+                       (if ext (list (literal "#:extensible ...")) null)))]
       [(asn1-type:sequence-of elt) (ppcons 'SEQUENCE-OF (list (for-type elt)))]
-      [(asn1-type:set components) (ppcons 'SET (map for-component components))]
+      [(asn1-type:set components ext)
+       (ppcons 'SET
+               (append (map for-component components)
+                       (if ext (list (literal "#:extensible ...")) null)))]
       [(asn1-type:set-of elt) (ppcons 'SET-OF (list (for-type elt)))]
       [(asn1-type:choice variants) (ppcons 'CHOICE (map for-variant variants))]
       [(asn1-type:implicit-tag tag type)
@@ -213,9 +219,9 @@
   (match t
     [(asn1-type:any) (list #f)]
     [(asn1-type:base name) (list (base-type-tag name))]
-    [(asn1-type:sequence _) (list (base-type-tag 'SEQUENCE))]
+    [(asn1-type:sequence _ _) (list (base-type-tag 'SEQUENCE))]
     [(asn1-type:sequence-of _) (list (base-type-tag 'SEQUENCE))]
-    [(asn1-type:set _) (list (base-type-tag 'SET))]
+    [(asn1-type:set _ _) (list (base-type-tag 'SET))]
     [(asn1-type:set-of _) (list (base-type-tag 'SET))]
     [(asn1-type:choice vs)
      (apply append (for/list ([v (in-list vs)]) (type->tags (variant-type v))))]

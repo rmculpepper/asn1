@@ -115,6 +115,11 @@
     (pattern (~seq)
              #:with option #''#f))
 
+  (define-splicing-syntax-class extensible
+    #:attributes (ext)
+    (pattern (~seq #:extensible ext:id))
+    (pattern (~seq) #:with ext #'#f))
+
   (define (in-rprefixes lst)
     ;; Produces list same length as lst
     (let loop ([lst lst] [rprefix null])
@@ -140,7 +145,7 @@
       [dep (with-syntax ([(name ...) names])
              #'(lambda (h) (let ([name (hash-ref h 'name #f)] ...) dep)))]))
   (syntax-parse stx
-    [(SEQUENCE c:sequence-component ...)
+    [(SEQUENCE c:sequence-component ... e:extensible)
      #`(asn1-type:sequence
         (check-sequence-components
          'SEQUENCE
@@ -148,7 +153,8 @@
               (list (make-component 'c.name c.type0 c.option) ...)
               (list #,@(for/list ([prefix-names (in-rprefixes (syntax->list #'(c.name ...)))]
                                   [c-dep (syntax->list #'(c.dep ...))])
-                         (wrap-refine prefix-names c-dep))))))]))
+                         (wrap-refine prefix-names c-dep)))))
+        'e.ext)]))
 
 (define-syntax (SET stx)
   (define-syntax-class set-component
@@ -157,8 +163,8 @@
              #:declare type (expr/c #'asn1-type?)
              #:with e #'(make-component 'name (type-add-tag 'Set type.c 't.mode t.e) option)))
   (syntax-parse stx
-    [(SET c:set-component ...)
-     #'(asn1-type:set (check-set-components 'SET (list c.e ...)))]))
+    [(SET c:set-component ... e:extensible)
+     #'(asn1-type:set (check-set-components 'SET (list c.e ...)) 'e.ext)]))
 
 (define-syntax (CHOICE stx)
   (define-splicing-syntax-class maybe-overlap
