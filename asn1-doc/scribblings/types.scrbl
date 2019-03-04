@@ -115,7 +115,7 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
 
 @section{Structured Types}
 
-@defform[(SEQUENCE component ...)
+@defform[(SEQUENCE component ... maybe-extensible)
          #:grammar ([component [name-id maybe-tag component-type maybe-option]
                                [name-id maybe-tag #:dependent component-type maybe-option]]
                     [maybe-tag (code:line)
@@ -127,7 +127,9 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
                                      (code:line #:private)]
                     [maybe-option (code:line)
                                   (code:line #:optional)
-                                  (code:line #:default default-expr)])
+                                  (code:line #:default default-expr)]
+                    [maybe-extensible (code:line)
+                                      (code:line #:extensible extension-id)])
          #:contracts ([component-type asn1-type?])]{
 
 Corresponds to the ASN.1 @tt{SEQUENCE} type form.
@@ -156,11 +158,23 @@ time the type is used for encoding or decoding.
 (asn1->bytes/DER IntOrString (hasheq 'type-id 2 'value "hello"))
 ]
 
+If @racket[#:extensible extension-id] is specified after the
+components, then the sequence type is extensible, and any extra final
+components found when parsing an instance of the type are included in
+the result hash under the key @racket['extension-id]---that is,
+@racket['extension-id] is mapped to a non-empty list of
+@racket[BER-frame]s. If extra components are found when parsing an
+instance of a non-extensible sequence type, an exception is raised.
+
 See also @secref["handling-info"].
+
+@history[#:changed "1.1" @elem{Added the @racket[#:extensible] option.}]
 }
 
-@defform[(SET component ...)
-         #:grammar ([component [name-id maybe-tag component-type maybe-option]])
+@defform[(SET component ... maybe-extensible)
+         #:grammar ([component [name-id maybe-tag component-type maybe-option]]
+                    [maybe-extensible (code:line)
+                                      (code:line #:extensible extension-id)])
          #:contracts ([component-type asn1-type?])]{
 
 Corresponds the ASN.1 @tt{SET} type form.
@@ -168,6 +182,12 @@ Corresponds the ASN.1 @tt{SET} type form.
 Represented by Racket values of the following form:
 @racketblock[(hash 'name-id _component-value ... ...)]
 where each @racket[_component-value] is a @racket[component-type] value.
+
+The syntax for components and extensibility are similar to that of
+@racket[SEQUENCE], except that component types cannot depend on other
+component values.
+
+@history[#:changed "1.1" @elem{Added the @racket[#:extensible] option.}]
 }
 
 @defproc[(SEQUENCE-OF [component-type asn1-type?])
@@ -190,8 +210,10 @@ Represented by Racket values of the following form:
 where each @racket[_component-value] is a @racket[component-type] value.
 }
 
-@defform[(CHOICE variant ...)
-         #:grammar ([variant [name-id maybe-tag variant-type maybe-option]])
+@defform[(CHOICE variant ... maybe-extensible)
+         #:grammar ([variant [name-id maybe-tag variant-type maybe-option]]
+                    [maybe-extensible (code:line)
+                                      (code:line #:extensible extension-id)])
          #:contracts ([variant-type asn1-type?])]{
 
 Corresonds to the ASN.1 @tt{CHOICE} type form.
@@ -200,6 +222,14 @@ Represented by Racket values of the following form:
 @racketblock[(list _variant-name-symbol _variant-value)]
 where @racket[_variant-value] is a value of the @racket[variant-type] in the
 variant named by @racket[_variant-name-symbol].
+
+If @racket[#:extensible extension-id] is specified after the variants,
+then the choice type is extensible, and any unknown tag found when
+parsing an instance of the type is parsed as @racket[ANY] and labeled
+with @racket['extension-id]. If an unknown tag is found when parsing
+an instance of a non-extensible choice type, an exception is raised.
+
+@history[#:changed "1.1" @elem{Added the @racket[#:extensible] option.}]
 }
 
 @defform[(TAG maybe-tag-class tag type)
@@ -265,6 +295,13 @@ the encoding represents.
                (hasheq 'a "Jean" 'b 24601)))
 ]
 }
+
+@defthing[ANY* asn1-type?]{
+
+Like @racket[ANY], but additionally recognizes and translates standard
+universal tags.
+
+@history[#:added "1.1"]}
 
 
 @section[#:tag "type-util"]{ASN.1 Type Utilities}

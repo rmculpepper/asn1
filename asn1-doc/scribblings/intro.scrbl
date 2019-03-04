@@ -99,8 +99,20 @@ the primitive contents.
 @interaction[#:eval the-eval
 (bytes->asn1/DER ANY
   (asn1->bytes/DER Point (hasheq 'x 123 'y 456 'z 789)))
+(bytes->asn1/DER ANY
+  (asn1->bytes/DER Employee '(title "Boomstick Specialist")))
 ]
 In this example, @racket['universal 16] is the tag for sequences, and
 @racket['universal 2] is the tag for integers.
+
+The type @racket[ANY*] is like @racket[ANY], but it additionally
+recognizes and translates standard tags:
+
+@interaction[#:eval the-eval
+(bytes->asn1/DER ANY*
+  (asn1->bytes/DER Point (hasheq 'x 123 'y 456 'z 789)))
+(bytes->asn1/DER ANY*
+  (asn1->bytes/DER Employee '(title "Boomstick Specialist")))
+]
 
 @(close-eval the-eval)
