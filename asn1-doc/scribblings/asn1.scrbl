@@ -43,7 +43,9 @@ details.
            #:title "ASN.1: Communication Between Heterogeneous Systems"
            #:is-book? #t
            #:author "Olivier Dubuisson"
-           #:date "2001"]
+           #:date "2001"
+           #:url "https://www.oss.com/asn1/resources/books-whitepapers-pubs/asn1-books.html#dubuisson"
+           @;{#:url "http://www.oss.com/asn1/resources/books-whitepapers-pubs/dubuisson-asn1-book.PDF"}]
 
 @bib-entry[#:key "Kaliski1993"
            #:title "A Layman's Guide to a Subset of ASN.1, BER, and DER"
