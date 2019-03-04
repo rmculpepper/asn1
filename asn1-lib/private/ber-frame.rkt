@@ -114,8 +114,8 @@
   (make-constructor-style-printer
    (lambda (f) 'BER-frame)
    (lambda (f)
-     (list (BER-frame-tag-class f)
-           (BER-frame-tag-number f)
+     (list (unquoted-printing-string
+            (format "~v ~v" (BER-frame-tag-class f) (BER-frame-tag-number f)))
            (BER-frame-content f)))))
 
 (define (BER-frame-tag-class f) (tag-class (BER-frame-tag f)))
