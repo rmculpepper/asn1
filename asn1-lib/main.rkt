@@ -266,7 +266,6 @@
 ;; ============================================================
 
 (define (read-asn1 type [in (current-input-port)]
-                   #:incremental? [incremental? #f]
                    #:check-exhausted? [check-exhausted? #f]
                    #:rules [rules 'BER]
                    #:who [who 'read-asn1])
@@ -274,9 +273,7 @@
     (lambda ()
       (define der? (eq? rules 'DER))
       (define br (make-asn1-binary-reader in))
-      (begin0
-          (cond [incremental? (read/parse-frame br type der?)]
-                [else (decode-frame type (read-frame br der?) der?)])
+      (begin0 (decode-frame type (read-frame br der?) der?)
         (when check-exhausted? (b-check-exhausted br who "ASN.1 value"))))))
 
 (define (write-asn1 type value [out (current-output-port)]
@@ -287,11 +284,9 @@
         (write-frame (BER-encode type value #:der? der?) out der?)))))
 
 (define (bytes->asn1 type b
-                     #:incremental? [incremental? #f]
                      #:rules [rules 'BER]
                      #:who [who 'bytes->asn1])
-  (read-asn1 type (open-input-bytes b)
-             #:incremental? incremental? #:rules rules #:who who))
+  (read-asn1 type (open-input-bytes b) #:rules rules #:who who))
 
 (define (asn1->bytes type v #:rules [rules 'BER] #:who [who 'asn1->bytes])
   (with-who who

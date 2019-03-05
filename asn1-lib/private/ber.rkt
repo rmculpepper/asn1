@@ -264,26 +264,15 @@
 ;; ============================================================
 ;; Decoding
 
-(define (make-parse-frame
-         ;; types Self, Frame
-         ;; linear types Init, Content, Frames
-         der?
-         initialize ;; Self Init -o Frame
-         frame-tag  ;; Frame -> Tag
-         frame-cont ;; Frame -> Content
-         content-cons? ;; Content -> Boolean
-         content-frames ;; Self Content -o Frames, PRE: (content-cons? cont)
-         content-prim ;; Self Content -o Bytes, PRE: (not (content-cons? cont))
-         frames-next ;; Self Frames -o (U null (cons Frame Frames))
-
-         ;; frame-is-data? implies Frame = BER-Frame, Frames = (Listof BER-Frame)
-         #:frame-is-data? [frame-is-data? #f])
-
-  (lambda (self type init)
-
-    ;; Note: -o is *linear* function; -> is unrestricted function.
-    ;; Linearity only applies to Init, Content, Frames; others are duplicable.
-    ;; Okay for "linear" function to throw without consuming linear argument.
+;; decode-frame : Type BER-Frame Boolean -> Any
+(define (decode-frame type frame0 der?)
+  ;; types Frame, Content, Frames
+  (define frame-tag BER-frame-tag)
+  (define frame-cont BER-frame-content)
+  (define content-cons? list?)
+  (define (content-frames content) content)
+  (define (content-prim content) content)
+  (begin
 
     ;; content-gather : Content BaseType -o (U Bytes (Listof Bytes))  -- linear!
     ;; PRE: if constructed encoding, already checked that it's allowed for base-type
@@ -294,7 +283,7 @@
              (flatten
               (let loop ([cont cont])
                 (cond [(content-cons? cont)
-                       (parse-frames (content-frames self cont)
+                       (parse-frames (content-frames cont)
                          (lambda (frame)
                            (define tag (frame-tag frame))
                            (unless (equal? tag want-tag)
@@ -302,12 +291,8 @@
                                         "\n  type: ~e\n  expected: ~a\n  decoded: ~a"
                                         base-type (display-tag want-tag) (display-tag tag)))
                            (loop (frame-cont frame))))]
-                      [else (content-prim self cont)])))]
-            [else (content-prim self cont)]))
-
-    ;; parse-init : Type Init -o Value
-    (define (parse-init type init)
-      (parse-frame type (initialize self init)))
+                      [else (content-prim cont)])))]
+            [else (content-prim cont)]))
 
     ;; mk-parse-frame : Type -> Tag Content -o Value
     (define ((mk-parse-frame type) frame)
@@ -338,17 +323,17 @@
            (parse-base base-type cont)]
           [(? asn1-type:sequence?)
            (begin (check-tag (base-type-tag 'SEQUENCE)) (check/need-cons?))
-           (parse-sequence type (content-frames self cont))]
+           (parse-sequence type (content-frames cont))]
           [(asn1-type:sequence-of type*)
            (begin (check-tag (base-type-tag 'SEQUENCE)) (check/need-cons?))
-           (parse-frames (content-frames self cont) (mk-parse-frame type*))]
+           (parse-frames (content-frames cont) (mk-parse-frame type*))]
           [(? asn1-type:set?)
            (begin (check-tag (base-type-tag 'SET)) (check/need-cons?))
-           (parse-set type (content-frames self cont))]
+           (parse-set type (content-frames cont))]
           [(asn1-type:set-of type*)
            (begin (check-tag (base-type-tag 'SET)) (check/need-cons?))
            ;; FIXME: in DER, elements must be sorted
-           (parse-frames (content-frames self cont) (mk-parse-frame type*))]
+           (parse-frames (content-frames cont) (mk-parse-frame type*))]
           [(asn1-type:choice variants ext)
            (match (variants-tag-assq tag variants)
              [(variant name type* _)
@@ -363,7 +348,7 @@
           [(asn1-type:explicit-tag want-tag type*)
            (begin (check-tag want-tag) (check/need-cons?))
            (parse-frames/one
-            (content-frames self cont) (mk-parse-frame type*)
+            (content-frames cont) (mk-parse-frame type*)
             (lambda ()
               (BER-error "expected single frame for explicitly tagged contents"
                          "\n  type: ~e" type)))]
@@ -375,43 +360,22 @@
            (loop (force promise) check-tag?)]
           )))
 
-
     ;; parse-any : Frame -o BER-frame
-    (define (parse-any frame)
-      (if frame-is-data?
-          frame
-          (let loop ([frame frame])
-            (define tag (frame-tag frame))
-            (define cont (frame-cont frame))
-            (cond [(content-cons? cont)
-                   (BER-frame tag (parse-frames (content-frames self cont) loop))]
-                  [else (BER-frame tag (content-prim self cont))]))))
+    (define (parse-any frame) frame)
 
     ;; parse-frames : Frames (Frame -o X) -o (listof X)
     (define (parse-frames frames parse)
-      (if frame-is-data?
-          (map parse frames)
-          (let loop ([acc null] [frames frames])
-            (match (frames-next self frames)
-              ['() (reverse acc)]
-              [(cons frame frames)
-               (loop (cons (parse frame) acc) frames)]))))
+      (map parse frames))
 
     ;; parse-frames/one : Frames (Frame -o X) (-> escape) -o X
     (define (parse-frames/one frames parse on-not-one)
-      (if frame-is-data?
-          (match frames [(list frame) (parse frame)] [_ (on-not-one)])
-          (match (frames-next self frames)
-            ['() (on-not-one)]
-            [(cons frame1 frames1)
-             (begin0 (parse frame1)
-               (unless (null? (frames-next self frames1)) (on-not-one)))])))
+      (match frames [(list frame) (parse frame)] [_ (on-not-one)]))
 
     ;; parse-sequence : Type Frames -> Hasheq[Symbol => Value]
     (define (parse-sequence type frames)
       (match-define (asn1-type:sequence cts ext) type)
       (define-values (lframes h)
-        (for/fold ([lframes (frames-next self frames)] [h (hasheq)]) ([ct (in-list cts)])
+        (for/fold ([lframes frames] [h (hasheq)]) ([ct (in-list cts)])
           (match-define (component ct-name ct-type0 ct-option ct-refine ct-tags) ct)
           (define (try-skip)
             (match ct-option
@@ -427,7 +391,7 @@
                     (define ct-type (if ct-refine (ct-refine h) ct-type0))
                     (define value (parse-frame ct-type frame))
                     (check-explicit-default ct-name ct-option value type)
-                    (values (frames-next self frames) (hash-set h ct-name value))]
+                    (values frames (hash-set h ct-name value))]
                    [else (try-skip)])])))
       (cond [(null? lframes) h]
             [ext ;; grab unknown frames
@@ -444,7 +408,7 @@
       (define (find-ct/tag tag)
         (for/first ([ct (in-list cts)] #:when (member tag (component-tags ct))) ct))
       (define h
-        (let loop ([lframes (frames-next self frames)] [h (hasheq)] [prev-tag #f] [un null])
+        (let loop ([lframes frames] [h (hasheq)] [prev-tag #f] [un null])
           (match lframes
             ['() (if (pair? un) (hash-set h ext (reverse un)) h)]
             [(cons frame frames)
@@ -458,10 +422,10 @@
                            (BER-error "duplicate field in SET"
                                       "\n  type: ~e\n  component: ~e" type ct-name))
                          (define value (parse-frame ct-type frame))
-                         (loop (frames-next self frames) (hash-set h ct-name value) tag un))]
+                         (loop frames (hash-set h ct-name value) tag un))]
                    [ext
                     (define value (parse-any frame))
-                    (loop (frames-next self frames) h (frame-tag frame) (cons value un))]
+                    (loop frames h (frame-tag frame) (cons value un))]
                    [else
                     (BER-error "unknown field in non-extensible SET" "\n type: ~e" type)])])))
       (for/fold ([h h]) ([ct (in-list cts)] #:when (not (hash-has-key? h (component-name ct))))
@@ -487,116 +451,7 @@
       ;; FIXME: type of content
       (BER-decode-base base-type (content-gather cont base-type) der?))
 
-    (parse-init type init)))
-
-;; ------------------------------------------------------------
-
-(define (make-read/parse-frame der?)
-  ;; type Self = BinaryReader
-  ;; type Init = #f
-  ;; type Frame = (cons Tag Content)
-  ;; type Frames = (U 'indefinite 'definite 'definite-done)
-
-  ;; type Content is Nat encoding (cons?,len) as Nat
-  (define (make-cont cons? len)
-    (bitwise-ior (if cons? #b01 0)
-                 (if len   #b10 0)
-                 (if len (arithmetic-shift len 2) 0)))
-  (define (cont-cons? cont)
-    (bitwise-bit-set? cont 0))
-  (define (cont-len cont)
-    (and (bitwise-bit-set? cont 1) (arithmetic-shift cont -2)))
-
-  ;; initialize : Self Init -o Frame
-  (define (initialize br init)
-    (define-values (tag cons? len) (read-frame-header br der?))
-    (cons tag (make-cont cons? len)))
-
-  ;; frame-tag : Frame -> Tag
-  (define frame-tag car)
-
-  ;; frame-cont : Frame -> Content
-  (define frame-cont cdr)
-
-  ;; content-cons? : Content -> Boolean
-  (define (content-cons? cont) (cont-cons? cont))
-
-  ;; content-frames : Content -o Frames
-  ;; PRE: (content-cons? cont)
-  (define (content-frames br cont)
-    (define len (cont-len cont))
-    (cond [len (b-push-limit br len) 'definite]
-          [else 'indefinite]))
-
-  ;; content-prim : Content -o Bytes
-  ;; PRE: (not (content-cons? cont))
-  (define (content-prim br cont)
-    (b-read-bytes br (cont-len cont)))
-
-  ;; frames-next : Frames -o (values Tag Cont Frames)
-  (define (frames-next br frames)
-    (case frames
-      [(definite)
-       (cond [(zero? (b-get-limit br))
-              (begin (b-pop-limit br) null)]
-             [else
-              (cons (initialize br #f) 'definite)])]
-      [(indefinite)
-       (define-values (tag cons? len) (read-frame-header br der?))
-       (cond [(eqv? tag nil-tag) '()]
-             [else (cons (cons tag (make-cont cons? len)) 'indefinite)])]
-      [else (error 'frames-next "frames = ~e" frames)]))
-
-  (make-parse-frame der?
-                    initialize
-                    frame-tag
-                    frame-cont
-                    content-cons?
-                    content-frames
-                    content-prim
-                    frames-next))
-
-;; read/parse-frame : BinaryReader Type Boolean -> Value
-(define read/parse-frame
-  (let ([read/parse-ber (make-read/parse-frame #f)]
-        [read/parse-der (make-read/parse-frame #t)])
-    (lambda (br type der?)
-      (if der? (read/parse-der br type #f) (read/parse-ber br type #f)))))
-
-;; ------------------------------------------------------------
-
-(define (make-decoder der?)
-  ;; type Self = #f
-  ;; type Init = BER-Frame
-  ;; type Frame = BER-Frame
-  ;; type Content = (U Bytes (Listof BER-Frame))
-  ;; type Frames = (Listof BER-frame)
-
-  (define (initialize self init) init)
-  (define frame-tag BER-frame-tag)
-  (define frame-cont BER-frame-content)
-  (define content-cons? list?)
-  (define (content-frames self content) content)
-  (define (content-prim self content) content)
-  (define (frames-next self frames) frames)
-
-  (make-parse-frame der?
-                    initialize
-                    frame-tag
-                    frame-cont
-                    content-cons?
-                    content-frames
-                    content-prim
-                    frames-next
-                    #:frame-is-data? #t))
-
-(define decode-ber (make-decoder #f))
-(define decode-der (make-decoder #t))
-
-;; decode-frame : Type BER-Frame Boolean -> Any
-(define (decode-frame type frame der?)
-  (cond [der? (decode-der #f type frame)]
-        [else (decode-ber #f type frame)]))
+    (parse-frame type frame0)))
 
 ;; ============================================================
 
