@@ -9,10 +9,10 @@
    ;; whitespace
    [(:or #\space #\tab #\newline #\return)
     (get-token input-port)]
-   ;; comment ::= [-][-] .* NEWLINE
-   ;; [(:seq "--" (:* (complement (:or #\newline #\return "--"))) (:or #\newline #\return "--"))
-   ;;  (get-token input-port)]
-   [(:seq "--" (:* (complement (:or #\newline #\return))) (:or #\newline #\return))
+   ;; comment ::= [-][-] .* (NEWLINE | [-][-])
+   [(:seq "--"
+          (:* (:seq (:? #\-) (:~ (:or #\newline #\return #\-))))
+          (:or #\newline #\return "--"))
     (get-token input-port)]
    ;; ----------------------------------------
    ;; bstring ::= ['] [01]* ['][B], maybe also whitespace (discarded)
