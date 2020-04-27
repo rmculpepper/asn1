@@ -5,15 +5,15 @@
 ;; Tokens (Dubuisson 8.3.2, p100 (pdf 128))
 
 (define get-token
-  (lexer
+  (lexer-src-pos
    ;; whitespace
    [(:or #\space #\tab #\newline #\return)
-    (get-token input-port)]
+    (return-without-pos (get-token input-port))]
    ;; comment ::= [-][-] .* (NEWLINE | [-][-])
    [(:seq "--"
           (:* (:seq (:? #\-) (:~ (:or #\newline #\return #\-))))
           (:or #\newline #\return "--"))
-    (get-token input-port)]
+    (return-without-pos (get-token input-port))]
    ;; ----------------------------------------
    ;; bstring ::= ['] [01]* ['][B], maybe also whitespace (discarded)
    [(:seq #\' (:or #\0 #\1) #\' #\B)
@@ -156,5 +156,5 @@
     (let loop ()
       (define next (get-token in))
       (printf "~e\n" next)
-      (unless (eq? next 'EOF)
+      (unless (eq? (token-name (position-token-token next)) 'EOF)
         (loop)))))

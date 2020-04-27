@@ -339,7 +339,7 @@
 (define-nt SymbolsFromModule
   [(Symbols+ FROM GlobalModuleReference) (fixme $1 $3)])
 
-(define-nt+ Symbols+ Symbol #:sep [])
+(define-nt+ Symbols+ Symbol #:sep [COMMA])
 
 (define-nt GlobalModuleReference
   [(ModuleReference AssignedIdentifier) (fixme $1 $2)])
@@ -513,11 +513,19 @@
   (parser #:parser-form yacc:cfg-parser
           #:start ModuleDefinition
           #:end EOF
+          #:src-pos
           #:error (lambda args (error 'asn1-parser "failed: ~e" args))))
 
 ;; ============================================================
 
 (module+ main
-  (for/list ([file (current-command-line-arguments)])
+  (require parser-tools/lex)
+  (for ([file (current-command-line-arguments)])
     (call-with-input-file* file
-      (lambda (in) (printf "~v\n" (asn1-parser (lambda () (get-token in))))))))
+      (lambda (in)
+        (port-count-lines! in)
+        (printf "~v\n" (asn1-parser (lambda ()
+                                      (define next (get-token in))
+                                      (case (token-name (position-token-token next))
+                                        #;[(word) (eprintf "next = ~e\n" next)])
+                                      next)))))))
