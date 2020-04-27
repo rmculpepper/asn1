@@ -411,9 +411,15 @@
   [(LBRACE NamedValue* RBRACE) (value:set $2)])
 
 (define-nt SequenceOfType
-  [(SEQUENCE OF Type) (type:sequence-of $3)])
+  [(SEQUENCE OF Type) (type:sequence-of $3 #f)])
 
-;; FIXME TypeWithConstraint
+(define-nt TypeWithConstraint
+  ;;[(SEQUENCE Constraint OF Type) ...]
+  ;;[(SET Constraint OF Type) ...]
+  [(SEQUENCE SizeConstraint OF Type)
+   (type:sequence-of $4 $2)]
+  [(SET SizeConstraint OF Type)
+   (type:set-of $4 $2)])
 
 (define-nt SizeConstraint
   [(SIZE Constraint) (fixme $2)])
@@ -424,7 +430,7 @@
 (define-nt*+ Value* Value+ Value #:sep [COMMA])
 
 (define-nt SetOfType
-  [(SET OF Type) (type:set-of $3)])
+  [(SET OF Type) (type:set-of $3 #f)])
 
 (define-nt SetOfValue
   [(LBRACE Value* RBRACE) (value:set-of $2)])
@@ -461,8 +467,8 @@
 ;; 13 Subtype constraints (pdf 285)
 
 (define-nt ConstrainedType
-  [(Type Constraint) (type:constrained $1 $2)])
-;; FIXME
+  [(Type Constraint) (type:constrained $1 $2)]
+  [(TypeWithConstraint) $1])
 
 (define-nt Constraint
   [(LPAREN ConstraintSpec RPAREN) (fixme $2 $3)])
