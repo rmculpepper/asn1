@@ -1,5 +1,6 @@
 #lang racket/base
 (require parser-tools/lex (prefix-in : parser-tools/lex-sre))
+(provide (all-defined-out))
 
 ;; Tokens (Dubuisson 8.3.2, p100 (pdf 128))
 
@@ -9,7 +10,9 @@
    [(:or #\space #\tab #\newline #\return)
     (get-token input-port)]
    ;; comment ::= [-][-] .* NEWLINE
-   [(:seq "--" (:* (:~ (:or #\newline #\return))) (:or #\newline #\return))
+   ;; [(:seq "--" (:* (complement (:or #\newline #\return "--"))) (:or #\newline #\return "--"))
+   ;;  (get-token input-port)]
+   [(:seq "--" (:* (complement (:or #\newline #\return))) (:or #\newline #\return))
     (get-token input-port)]
    ;; ----------------------------------------
    ;; bstring ::= ['] [01]* ['][B], maybe also whitespace (discarded)
@@ -136,7 +139,8 @@
    ELLIPSIS
    AT
    PIPE
-   ])
+
+   EOF])
 
 
 ;; ------------------------------------------------------------

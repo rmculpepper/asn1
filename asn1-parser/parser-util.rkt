@@ -153,7 +153,8 @@
 
 (define-syntax parser
   (syntax-parser
-    [(_ (~alt (~once (~seq #:start start-nt:id ...))
+    [(_ (~alt (~optional (~seq #:parser-form make-parser:id))
+              (~once (~seq #:start start-nt:id ...))
               (~once (~seq #:end (~or* end-token:etoken end-token:vtoken) ...))
               (~once (~seq #:error error-handler:expr))
               (~optional (~and #:src-pos (~bind [src-pos-clause #'(src-pos)])))
@@ -210,7 +211,7 @@
                    [(start-nt* ...) start-nts]
                    [(token-group ...) (dict-keys token-groups)])
        #'(let ([shadow-nt '#f] ...)
-           (yacc:parser
+           ((~? make-parser yacc:parser)
             (tokens token-group ...)
             (grammar ntdef ...)
             (start start-nt* ...)
@@ -218,116 +219,3 @@
             (error error-handler)
             (~? src-pos-clause)
             (~? (debug debug-file)))))]))
-
-;; ------------------------------------------------------------
-
-(begin-for-syntax
-
-  (define-syntax-class ?nt #:attributes (name okay skip fail)
-    (pattern name:id
-             #:attr okay (let ([m (regexp-match #rx"^[?](.*)$" (symbol->string (syntax-e #'name)))])
-                           (and m (datum->syntax #'name (string->symbol (cadr m)) #'name)))
-             #:when ($ okay)
-             #:attr skip (and ($ okay) (format-id #'name "~a/Skipped" ($ okay) #:source #'name))
-             #:attr fail (and ($ okay) (format-id #'name "~a/Interrupted" ($ okay) #:source #'name))))
-
-  (define (process-okay-elem e)
-    (syntax-parse e
-      #:literals (! !!)
-      [[#:nt ! v?] #'[#:const #f v?]]
-      [[#:nt !! v?] #f]
-      [[#:nt nt:?nt v?] #'[#:nt nt.okay v?]]
-      [_ e]))
-
-  (define (process-skip-elem e)
-    (syntax-parse e
-      #:literals (! !!)
-      [[#:nt ! v?] #'[#:const #f v?]]
-      [[#:nt !! v?] #'[#:const #f v?]]
-      [[#:nt nt:?nt v?] #'[#:nt nt.skip v?]]
-      [[#:nt nt:id v?] (with-syntax ([nt/skip (format-id #'nt "~a/Skipped" #'nt #:source #'nt)])
-                         #'[#:nt nt/skip v?])]
-      [[#:t t v? _] #'[#:const #f v?]]
-      [[#:const v v?] e]))
-
-  (define (process-fail-elem e)
-    (syntax-parse e
-      #:literals (! !!)
-      [[#:nt ! v?] #'[#:nt !/Interrupted v?]]
-      [[#:nt !! v?] #'[#:nt !/Interrupted v?]]
-      [[#:nt nt:?nt v?] #'[#:nt nt.fail v?]]
-      [[#:const v v?] e]
-      [_ #f]))
-
-  (define ((make-nt*-transformer process-X-ast) stx)
-    (syntax-case stx ()
-      [(_ nt/X ([ast action] ...))
-       (with-syntax ([([ast* action*] ...)
-                      (append* (map process-X-ast
-                                    (syntax->list #'(ast ...))
-                                    (syntax->list #'(action ...))))])
-         #'(define-syntax nt/X
-             (nonterminal 'nt/X
-                          (list (production (delay (resolve-elems (quote-syntax ast*)))
-                                            (quote-syntax action*))
-                                ...))))]))
-
-  (define (process-okay-ast ast action)
-    (define ast* (map process-okay-elem (syntax->list ast)))
-    (cond [(andmap values ast*)
-           (list (list ast* action))]
-          [else null]))
-
-  (define (process-fail-ast ast action)
-    ;; {fail,skip}-loop : (Listof ElemStx) (Listof ElemStx) -> (Listof (Listof ElemStx))
-    (define (fail-loop es acc)
-      (cond [(pair? es)
-             (define okay-e (process-okay-elem (car es)))
-             (define fail-e (process-fail-elem (car es)))
-             (append (if okay-e (fail-loop (cdr es) (cons okay-e acc)) null)
-                     (if fail-e (skip-loop (cdr es) (cons fail-e acc)) null))]
-            [else null]))
-    (define (skip-loop es acc)
-      (list (append (reverse acc) (map process-skip-elem es))))
-    (map (lambda (ast*) (list ast* action))
-         (fail-loop (syntax->list ast) null))))
-
-(define-syntax define-nt*
-  (syntax-parser
-    [(_ nt:id
-        (~alt (~optional (~seq #:args args))
-              (~optional (~seq #:skipped skipped:expr))) ...
-              p:prod ...)
-     (with-syntax ([nt/Skip (format-id #'nt "~a/Skipped" #'nt)]
-                   [nt/Fail (format-id #'nt "~a/Interrupted" #'nt)]
-                   [(action ...)
-                    (generate-temporaries
-                     (for/list ([_i (in-list (syntax->list #'(p ...)))]) #'nt))]
-                   [(skipped-action)
-                    (generate-temporaries '(skipped))])
-       #'(begin
-           (define (action p.bind ...) (~? (lambda args p.rhs) p.rhs)) ...
-           (define (skipped-action) (~? skipped #f))
-           (define-nt/Okay nt      ([(p.ast ...) action] ...))
-           (define-nt/Fail nt/Fail ([(p.ast ...) action] ...))
-           (define-syntax nt/Skip
-             (nonterminal 'nt/Skip (list (production null #'skipped-action))))
-           (expression/begin-for-syntax
-            (begin (check-nonterminal (lookup-nonterminal (quote-syntax nt)))
-                   (check-nonterminal (lookup-nonterminal (quote-syntax nt/Fail)))))))]))
-
-(define-syntax define-nts*
-  (syntax-parser
-    [(_ [nt:id part ...] ...)
-     #'(begin (define-nt* nt part ...) ...)]))
-
-(define-syntax define-nt/Okay (make-nt*-transformer process-okay-ast))
-(define-syntax define-nt/Fail (make-nt*-transformer process-fail-ast))
-
-(define-syntax ! #f)
-(define-syntax !! #f)
-
-(define-tokens error-tokens #:tokens (ERROR))
-(use-tokens! error-tokens)
-
-(define-nt !/Interrupted [(ERROR) $1])
