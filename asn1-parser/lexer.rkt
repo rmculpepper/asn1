@@ -89,7 +89,9 @@
     OPTIONAL PATTERN PDV PLUS-INFINITY PRESENT PrintableString PRIVATE
     REAL RELATIVE-OID SEQUENCE SET SIZE STRING SYNTAX T61String TAGS
     TeletexString TRUE TYPE-IDENTIFIER UNION UNIQUE UNIVERSAL
-    UniversalString UTCTime UTF8String VideotexString VisibleString WITH))
+    UniversalString UTCTime UTF8String VideotexString VisibleString WITH
+
+    ANY DEFINED))
 
 (define reserved-word-h
   (for/hash ([w (in-list reserved-words)]) (values (symbol->string w) w)))
@@ -121,6 +123,8 @@
    REAL RELATIVE-OID SEQUENCE SET SIZE STRING SYNTAX T61String TAGS
    TeletexString TRUE TYPE-IDENTIFIER UNION UNIQUE UNIVERSAL
    UniversalString UTCTime UTF8String VideotexString VisibleString WITH
+
+   ANY DEFINED
 
    ASSIGN
    LPAREN

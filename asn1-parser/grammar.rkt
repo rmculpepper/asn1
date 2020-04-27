@@ -73,7 +73,10 @@
   ;;[(InstanceOfType) $1]
   ;;[(RealType) $1]
   [(CharacterStringType) $1]
-  [(TaggedType) $1])
+  [(TaggedType) $1]
+  ;; ----------------------------------------
+  [(ANY) (type 'any)]
+  [(ANY DEFINED BY Identifier) (type:any-defined-by $4)])
 
 (define-nt CharacterStringType
   ;; RestrictedCharacterStringType

@@ -23,6 +23,7 @@
 (struct type:string (subtype) #:prefab)
 (struct type:tagged (tag mode type) #:prefab)
 (struct type:constrained (type constraint) #:prefab)
+(struct type:any-defined-by (id) #:prefab)
 
 ;; Values
 

@@ -13,14 +13,14 @@ BEGIN
 -- and required by this specification
 
 -- UniversalString ::= [UNIVERSAL 28] IMPLICIT OCTET STRING
---         -- UniversalString is defined in ASN.1:1993
+        -- UniversalString is defined in ASN.1:1993
 
 -- BMPString ::= [UNIVERSAL 30] IMPLICIT OCTET STRING
---       -- BMPString is the subtype of UniversalString and models
---       -- the Basic Multilingual Plane of ISO/IEC 10646
+      -- BMPString is the subtype of UniversalString and models
+      -- the Basic Multilingual Plane of ISO/IEC 10646
 
 -- UTF8String ::= [UNIVERSAL 12] IMPLICIT OCTET STRING
---       -- The content of this type conforms to RFC 3629.
+      -- The content of this type conforms to RFC 3629.
 
 -- PKIX specific OIDs
 
