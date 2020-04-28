@@ -1,6 +1,16 @@
 #lang racket/base
 (provide (all-defined-out))
 
+;; Generic
+
+(struct expr:dot (expr member) #:prefab)
+(struct expr:apply (expr args) #:prefab)
+
+(struct ast:named (name thing) #:prefab)
+
+(struct tag (class number) #:prefab)
+
+
 ;; References
 
 (struct ref:value (name) #:prefab)
@@ -44,6 +54,7 @@
 (struct type:from-object (object field) #:prefab)
 (struct type:instance-of (oid) #:prefab)
 (struct type:apply (type args) #:prefab)
+(struct type:select (id type) #:prefab)
 
 ;; Values
 
@@ -53,9 +64,11 @@
 (struct value:seq/set (values) #:prefab)
 (struct value:from-object (object field) #:prefab)
 (struct value:apply (value args) #:prefab)
+(struct value:annotated (type value) #:prefab)
 
 (struct named-value (name value) #:prefab)
 
+(struct value-set:defn (values) #:prefab)
 (struct value-set:from-object (object field) #:prefab)
 
 ;; Constraints
@@ -66,14 +79,25 @@
 (struct constraint:includes (type) #:prefab)
 (struct constraint:value-range (lo hi) #:prefab)
 (struct constraint:size (c) #:prefab)
+(struct constraint:user () #:prefab)
 
 ;; Classes
 
-(struct class:defn (components) #:prefab)
+(struct class:defn (components stx) #:prefab)
 (struct class:type-identifier () #:prefab)
 
 (struct object:from-object (object field) #:prefab)
 (struct object-set:from-object (object field) #:prefab)
+
+(struct object:defn (decls) #:prefab)
+(struct object:sugar (things) #:prefab)
+
+(struct sugar:optional (things) #:prefab)
+(struct sugar:literal (word) #:prefab)
+(struct sugar:comma () #:prefab)
+(struct sugar:reserved (word) #:prefab)
+
+(struct object-set:defn (elems) #:prefab)
 
 (struct class:apply (class args) #:prefab)
 (struct object:apply (object args) #:prefab)

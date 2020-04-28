@@ -5,7 +5,7 @@
 
 (use-tokens! asn1-tokens)
 
-(define-nt Word/WORD [(Word) $1] #;[(WORD) $1])
+(define-nt Word/WORD [(Word) $1] [(WORD) $1])
 (define-nt amp-Word/WORD [(amp-Word) $1] [(amp-WORD) $1])
 
 (define-nt Number [(num) $1])
@@ -25,6 +25,40 @@
 (define-nt ValueSetFieldReference [(amp-Word/WORD) (ref:value-set-field $1)])
 (define-nt ObjectFieldReference [(amp-id) (ref:object-field $1)])
 (define-nt ObjectSetFieldReference [(amp-Word/WORD) (ref:object-set-field $1)])
+
+(define-nt ReservedWORD
+  [(ABSENT) 'ABSENT] [(ABSTRACT-SYNTAX) 'ABSTRACT-SYNTAX] [(ALL) 'ALL]
+  [(APPLICATION) 'APPLICATION] [(AUTOMATIC) 'AUTOMATIC]
+  [(BEGIN) 'BEGIN] [(BIT) 'BIT] #;[(BMPString) 'BMPString] [(BOOLEAN) 'BOOLEAN] [(BY) 'BY]
+  [(CHARACTER) 'CHARACTER] [(CHOICE) 'CHOICE] [(CLASS) 'CLASS] [(COMPONENT) 'COMPONENT]
+  [(COMPONENTS) 'COMPONENTS] [(CONSTRAINED) 'CONSTRAINED] [(CONTAINING) 'CONTAINING]
+  [(DEFAULT) 'DEFAULT] [(DEFINITIONS) 'DEFINITIONS]
+  [(EMBEDDED) 'EMBEDDED] [(ENCODED) 'ENCODED] [(END) 'END] [(ENUMERATED) 'ENUMERATED]
+  [(EXCEPT) 'EXCEPT] [(EXPLICIT) 'EXPLICIT] [(EXPORTS) 'EXPORTS]
+  [(EXTENSIBILITY) 'EXTENSIBILITY] [(EXTERNAL) 'EXTERNAL]
+  [(FALSE) 'FALSE] [(FROM) 'FROM]
+  #;[(GeneralizedTime) 'GeneralizedTime] #;[(GeneralString) 'GeneralString]
+  #;[(GraphicString) 'GraphicString]
+  #;[(IA5String) 'IA5String] [(IDENTIFIER) 'IDENTIFIER] [(IMPLICIT) 'IMPLICIT]
+  [(IMPLIED) 'IMPLIED] [(IMPORTS) 'IMPORTS] [(INCLUDES) 'INCLUDES] [(INSTANCE) 'INSTANCE]
+  [(INTEGER) 'INTEGER] [(INTERSECTION) 'INTERSECTION] #;[(ISO646String) 'ISO646String]
+  [(MAX) 'MAX] [(MIN) 'MIN] [(MINUS-INFINITY) 'MINUS-INFINITY]
+  [(NULL) 'NULL] #;[(NumericString) 'NumericString]
+  [(OBJECT) 'OBJECT] #;[(ObjectDescriptor) 'ObjectDescriptor] [(OCTET) 'OCTET] [(OF) 'OF]
+  [(OPTIONAL) 'OPTIONAL]
+  [(PATTERN) 'PATTERN] [(PDV) 'PDV] [(PLUS-INFINITY) 'PLUS-INFINITY] [(PRESENT) 'PRESENT]
+  #;[(PrintableString) 'PrintableString] [(PRIVATE) 'PRIVATE]
+  [(REAL) 'REAL] [(RELATIVE-OID) 'RELATIVE-OID]
+  [(SEQUENCE) 'SEQUENCE] [(SET) 'SET] [(SIZE) 'SIZE] [(STRING) 'STRING] [(SYNTAX) 'SYNTAX]
+  #;[(T61String) 'T61String] [(TAGS) 'TAGS] #;[(TeletexString) 'TeletexString] [(TRUE) 'TRUE]
+  [(TYPE-IDENTIFIER) 'TYPE-IDENTIFIER]
+  [(UNION) 'UNION] [(UNIQUE) 'UNIQUE] [(UNIVERSAL) 'UNIVERSAL]
+  #;[(UniversalString) 'UniversalString] #;[(UTCTime) 'UTCTime] #;[(UTF8String) 'UTF8String]
+  #;[(VideotexString) 'VideotexString] #;[(VisibleString) 'VisibleString]
+  [(WITH) 'WITH]
+
+  [(ANY) 'ANY] [(DEFINED) 'DEFINED])
+
 
 ;; ============================================================
 
@@ -64,7 +98,7 @@
   [(TypeReference Type ASSIGN ValueSet)
    (assign:value-set $1 null $2 $4)]
   [(ObjectClassReference ASSIGN ObjectClass)
-   (assign:object-class $1 null $3)]
+   (assign:class $1 null $3)]
   [(ObjectReference DefinedObjectClass ASSIGN Object)
    (assign:object $1 null $2 $4)]
   [(ObjectSetReference DefinedObjectClass ASSIGN ObjectSet)
@@ -113,8 +147,7 @@
    (fixme $1 $2)])
 
 (define-nt DefinitiveIdentifier
-  [(LBRACE DefinitiveObjectIdComponents+ RBRACE)
-   (fixme $2)]
+  [(LBRACE DefinitiveObjectIdComponents+ RBRACE) $2]
   [() #f])
 
 (define-nt+ DefinitiveObjectIdComponents+ DefinitiveObjectIdComponent #:sep [])
@@ -193,7 +226,7 @@
   #;[(ParameterizedValueSetType) $1])
 
 (define-nt ExternalTypeReference
-  [(ModuleReference DOT TypeReference) (fixme $1 $3)])
+  [(ModuleReference DOT TypeReference) (expr:dot $1 $3)])
 
 (define-nt DefinedValue
   [(ExternalValueReference) $1]
@@ -201,7 +234,7 @@
   [(ParameterizedValue) $1])
 
 (define-nt ExternalValueReference
-  [(ModuleReference DOT ValueReference) (fixme $1 $3)])
+  [(ModuleReference DOT ValueReference) (expr:dot $1 $3)])
 
 (define-nt DefinedObjectClass
   [(ExternalObjectClassReference) $1]
@@ -209,21 +242,21 @@
   [(UsefulObjectClassReference) $1])
 
 (define-nt ExternalObjectClassReference
-  [(ModuleReference DOT ObjectClassReference) (fixme $1 $3)])
+  [(ModuleReference DOT ObjectClassReference) (expr:dot $1 $3)])
 
 (define-nt DefinedObject
   [(ExternalObjectReference) $1]
   [(ObjectReference) $1])
 
 (define-nt ExternalObjectReference
-  [(ModuleReference DOT ObjectReference) (fixme $1 $3)])
+  [(ModuleReference DOT ObjectReference) (expr:dot $1 $3)])
 
 (define-nt DefinedObjectSet
   [(ExternalObjectSetReference) $1]
   [(ObjectSetReference) $1])
 
 (define-nt ExternalObjectSetReference
-  [(ModuleReference DOT ObjectSetReference) (fixme $1 $3)])
+  [(ModuleReference DOT ObjectSetReference) (expr:dot $1 $3)])
 
 ;; ============================================================
 ;; TYPES:
@@ -263,8 +296,8 @@
 (begin
   (define-nt+ NamedNumber+ NamedNumber #:sep [COMMA])
   (define-nt NamedNumber
-    [(Identifier LPAREN Number RPAREN) (fixme $1 $3)]
-    [(Identifier LPAREN DefinedValue RPAREN) (fixme $1 $3)]))
+    [(Identifier LPAREN Number RPAREN) (ast:named $1 $3)]
+    [(Identifier LPAREN DefinedValue RPAREN) (ast:named $1 $3)]))
 
 ;; ENUMERATED
 (begin
@@ -283,9 +316,9 @@
   (define-nt+ NamedBit+ NamedBit #:sep [COMMA])
   (define-nt NamedBit
     [(Identifier LPAREN Number RPAREN)
-     (fixme $1 $3)]
+     (ast:named $1 $3)]
     [(Identifier LPAREN DefinedValue RPAREN)
-     (fixme $1 $3)]))
+     (ast:named $1 $3)]))
 
 ;; ----------------------------------------
 ;; 11 Character string types (pdf 199)
@@ -359,7 +392,7 @@
 ;; tagged types
 (begin
   (define-nt Tag
-    [(LBRACKET Class ClassNumber RBRACKET) (fixme $2 $3)])
+    [(LBRACKET Class ClassNumber RBRACKET) (tag $2 $3)])
   (define-nt Class
     [(UNIVERSAL)   'universal]
     [(APPLICATION) 'application]
@@ -388,7 +421,8 @@
   [(ObjectIdentifierValue) $1]
   #;[(EmbeddedPDVValue) $1]
   #;[(ExternalValue) $1]
-  #;[(ObjectClassFieldValue) $1]
+  [(Type COLON Value)  ;; spec has [(ObjectClassFieldValue) $1], overlaps with BuiltinValue
+   (value:annotated $1 $3)]
   #;[(RealValue) $1]
   #;[(TaggedValue) $1])
 
@@ -408,7 +442,7 @@
 
 (define-nt GenOIDComponent
   [(Number) $1]
-  [(Identifier LPAREN Number RPAREN) (fixme $1 $3)]
+  [(Identifier LPAREN Number RPAREN) (ast:named $1 $3)]
   ;; DefinedValue contains Identifier: OID/Rel-OID or INTEGER
   [(DefinedValue) $1])
 
@@ -423,7 +457,7 @@
   [(Identifier Value) (named-value $1 $2)])
 
 (define-nt SelectionType
-  [(Identifier LESSTHAN Type) (fixme $1 $3)])
+  [(Identifier LESSTHAN Type) (type:select $1 $3)])
 
 ;; ============================================================
 ;; 13 Subtype constraints (pdf 285)
@@ -531,6 +565,23 @@
   [(ElementSetSpecs) $1]
   [(GeneralConstraint) $1])
 
+;; 13.13 User-defined constraint
+
+(define-nt UserDefinedConstraint
+  [(CONSTRAINED BY LBRACE UserDefinedConstraintParameter* RBRACE)
+   (constraint:user)])
+
+(define-nt*+ UserDefinedConstraintParameter* UserDefinedConstraintParameter+
+  UserDefinedConstraintParameter #:sep [COMMA])
+
+(define-nt UserDefinedConstraintParameter
+  [(Governor COLON Value) #f]
+  [(Governor COLON ValueSet) #f]
+  [(Governor COLON Object) #f]
+  [(Governor COLON ObjectSet) #f]
+  [(Type) #t]
+  [(DefinedObjectClass) #f])
+
 ;; ============================================================
 ;; 14 Presentation context switching types (pdf 325) (skipped)
 
@@ -545,7 +596,7 @@
   [(ParameterizedObjectClass) $1])
 
 (define-nt ObjectClassDefn
-  [(CLASS LBRACE FieldSpec+ RBRACE) (class:defn $3)])
+  [(CLASS LBRACE FieldSpec+ RBRACE WithSyntaxSpec) (class:defn $3 $5)])
 
 (define-nt+ FieldSpec+ FieldSpec #:sep [COMMA])
 
@@ -648,8 +699,8 @@
   [(ParameterizedObject) $1])
 
 (define-nt ObjectDefn
-  [(DefaultSyntax) $1]
-  [(DefinedSyntax) (fixme 'defined-syntax $1)])
+  [(DefaultSyntax) (object:defn $1)]
+  [(DefinedSyntax) (object:sugar $1)])
 
 (define-nt DefaultSyntax
   [(LBRACE FieldSetting* RBRACE) $2])
@@ -657,11 +708,11 @@
 (define-nt*+ FieldSetting* FieldSetting+ FieldSetting #:sep [COMMA])
 
 (define-nt FieldSetting
-  [(TypeFieldReference Type) (fixme 'type $1 $2)]
-  [(ValueFieldReference Value) (fixme 'value $1 $2)]
-  [(ValueSetFieldReference ValueSet) (fixme 'value-set $1 $2)]
-  [(ObjectFieldReference Object) (fixme 'object $1 $2)]
-  [(ObjectSetFieldReference ObjectSet) (fixme 'object-set $1 $2)])
+  [(TypeFieldReference Type) (ast:named $1 $2)]
+  [(ValueFieldReference Value) (ast:named $1 $2)]
+  [(ValueSetFieldReference ValueSet) (ast:named $1 $2)]
+  [(ObjectFieldReference Object) (ast:named $1 $2)]
+  [(ObjectSetFieldReference ObjectSet) (ast:named $1 $2)])
 
 ;; IMPRECISE
 ;; (define-nt FieldSetting
@@ -694,11 +745,13 @@
   [(PrimitiveFieldName) $1])
 
 (define-nt OptionalGroup
-  [(LBRACKET TokenOrGroupSpec+ RBRACKET) (fixme 'optional-group $2)])
+  [(LBRACKET TokenOrGroupSpec+ RBRACKET) (sugar:optional $2)])
 
 (define-nt Literal
-  [(WORD) (fixme 'literal $1)]
-  [(COMMA) (fixme 'literal 'comma)])
+  [(WORD) (sugar:literal $1)]
+  [(ReservedWORD) (sugar:reserved $1)]
+  ;; FIXME: Any uppercase reserved word ... :(
+  [(COMMA) (sugar:comma)])
 
 (define-nt DefinedSyntax
   [(LBRACE DefinedSyntaxToken* RBRACE) $2])
@@ -713,14 +766,14 @@
 
 (define-nt ObjectSet
   [(LBRACE ObjectSetSpec RBRACE)
-   (fixme 'object-set $2)])
+   (object-set:defn $2)])
 
 (define-nt ObjectSetSpec
   [(RootElementSetSpec OptionalExtensionMarker) $1])
 
 (define-nt ValueSet
   [(LBRACE ElementSetSpecs RBRACE)
-   (fixme 'value-set $2)])
+   (value-set:defn $2)])
 
 (define-nt ObjectSetElements
   [(Object) $1]
@@ -729,6 +782,8 @@
   [(ParameterizedObjectSet) $1])
 
 ;; 15.6 Accessing the information stored in objects and object sets (pdf 364)
+
+;; FIXME: simplify/unify ASTs?
 
 (define-nt ValueFromObject
   [(ReferencedObjects DOT Value-FieldName)
@@ -759,14 +814,14 @@
 ;; 15.7 (pdf 369)
 
 (define-nt ObjectClassFieldType
-  [(DefinedObjectClass DOT FieldName) (fixme $1 $3)])
+  [(DefinedObjectClass DOT FieldName) (expr:dot $1 $3)])
 
 (define-nt ObjectClassFieldValue
   [(OpenTypeFieldVal) $1]
   [(FixedTypeFieldVal) $1])
 
 (define-nt OpenTypeFieldVal
-  [(Type COLON Value) (fixme $1 $3)]
+  [(Type COLON Value) (value:annotated $1 $3)]
   [(FixedTypeFieldVal) $1])
 
 (define-nt FixedTypeFieldVal
@@ -774,7 +829,7 @@
   [(ReferencedValue) $1])
 
 (define-nt GeneralConstraint
-  #;[(UserDefinedConstraint) $1]
+  [(UserDefinedConstraint) $1]
   [(TableConstraint) $1]
   #;[(ContentsConstraint) $1])
 
