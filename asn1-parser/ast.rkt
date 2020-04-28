@@ -1,13 +1,30 @@
 #lang racket/base
 (provide (all-defined-out))
 
+;; References
+
+(struct ref:value (name) #:prefab)
+(struct ref:type (name) #:prefab)
+(struct ref:module (name) #:prefab)
+
+(struct ref:object-class (name) #:prefab)
+(struct ref:object (name) #:prefab)
+(struct ref:object-set (name) #:prefab)
+
+(struct ref:type-field (name) #:prefab)
+(struct ref:value-field (name) #:prefab)
+(struct ref:value-set-field (name) #:prefab)
+(struct ref:object-field (name) #:prefab)
+(struct ref:object-set-field (name) #:prefab)
+
 ;; Assignments
 
-(struct assign:type (name type) #:prefab)
-(struct assign:value (name type value) #:prefab)
-
-(struct assign:type-fun (name params type) #:prefab)
-(struct assign:value-fun (name params type value) #:prefab)
+(struct assign:type (name params type) #:prefab)
+(struct assign:value (name params type value) #:prefab)
+(struct assign:value-set (name params type value-set) #:prefab)
+(struct assign:class (name params class) #:prefab)
+(struct assign:object (name params class object) #:prefab)
+(struct assign:object-set (name params class object-set) #:prefab)
 
 ;; Types
 
@@ -24,6 +41,9 @@
 (struct type:tagged (tag mode type) #:prefab)
 (struct type:constrained (type constraint) #:prefab)
 (struct type:any-defined-by (id) #:prefab)
+(struct type:from-object (object field) #:prefab)
+(struct type:instance-of (oid) #:prefab)
+(struct type:apply (type args) #:prefab)
 
 ;; Values
 
@@ -31,15 +51,34 @@
 (struct value:choice (name value) #:prefab)
 (struct value:seq/set-of (values) #:prefab)
 (struct value:seq/set (values) #:prefab)
+(struct value:from-object (object field) #:prefab)
+(struct value:apply (value args) #:prefab)
 
 (struct named-value (name value) #:prefab)
+
+(struct value-set:from-object (object field) #:prefab)
 
 ;; Constraints
 
 (struct constraint:and (c1 c2) #:prefab)
 (struct constraint:or (c1 c2) #:prefab)
-(struct constraint:value (value) #:prefab)
-(struct constraint:interval (lo hi) #:prefab)
+(struct constraint:single-value (value) #:prefab)
+(struct constraint:includes (type) #:prefab)
+(struct constraint:value-range (lo hi) #:prefab)
 (struct constraint:size (c) #:prefab)
 
+;; Classes
+
+(struct class:defn (components) #:prefab)
+(struct class:type-identifier () #:prefab)
+
+(struct object:from-object (object field) #:prefab)
+(struct object-set:from-object (object field) #:prefab)
+
+(struct class:apply (class args) #:prefab)
+(struct object:apply (object args) #:prefab)
+(struct object-set:apply (object-set args) #:prefab)
+
+
+;; ----------------------------------------
 (define fixme vector)

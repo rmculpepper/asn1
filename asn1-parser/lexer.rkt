@@ -27,7 +27,7 @@
    ;; identifier ::= [a-z][-A-Z0-9]* -- but no double-dash, last char must not be dash
    ;;     ::= [a-z] ([-]?[a-zA-Z0-9])*
    [(:seq (:/ #\a #\z) (:* (:? #\-) (:/ #\a #\z #\A #\Z #\0 #\9)))
-    (token-id lexeme)]
+    (token-id (string->symbol lexeme))]
    ;; number ::= 0 | [1-9][0-9]*
    [(:+ (:/ #\0 #\9))
     (token-num (string->number lexeme))]
@@ -38,22 +38,16 @@
    ;; word ::= same as typereference
    [(:seq (:/ #\A #\Z) (:* (:? #\-) (:/ #\a #\z #\A #\Z #\0 #\9)))
     (or (hash-ref reserved-word-h lexeme #f)
-        (token-word lexeme))]
+        (if (regexp-match? #rx"[a-z]" lexeme)
+            (token-Word (string->symbol lexeme))
+            (token-WORD (string->symbol lexeme))))]
    ;; ----------------------------------------
    [(:seq #\& (:/ #\a #\z) (:* (:? #\-) (:/ #\a #\z #\A #\Z #\0 #\9)))
-    (token-amp-id (substring lexeme 1))]
+    (token-amp-id (string->symbol lexeme))]
    [(:seq #\& (:/ #\A #\Z) (:* (:? #\-) (:/ #\a #\z #\A #\Z #\0 #\9)))
-    (token-amp-word (substring lexeme 1))]
-   ;; modulereference = typereference
-   ;; objectclassreference ::= typereference, but lower-case chars not allowed
-   ;; objectfieldreference ::= [&] objectreference
-   ;; objectreference ::= valuereference
-   ;; objectsetfieldreference ::= [&] objectsetreference
-   ;; objectsetreference ::= typereference
-   ;; typefieldreference ::= [&]typefieldreference
-   ;; valuefieldreference ::= [&]valuereference
-   ;; valuereference ::= identifier
-   ;; valuesetfieldreference ::= [&]typereference
+    (if (regexp-match? #rx"[a-z]" lexeme)
+        (token-amp-Word (string->symbol lexeme))
+        (token-amp-WORD (string->symbol lexeme)))]
    ;; ----------------------------------------
 
    ["::=" 'ASSIGN]
@@ -73,6 +67,8 @@
    ["..." 'ELLIPSIS]
    ["@" 'AT]
    ["|" 'PIPE]
+   ["<" 'LESSTHAN]
+   ["^" 'CARET]
 
    ;; ----------------------------------------
    [(eof)
@@ -106,9 +102,11 @@
    hstring
    id
    num
-   word
+   Word
+   WORD
    amp-id
-   amp-word
+   amp-Word
+   amp-WORD
    ]
 
   #:empty-tokens
@@ -143,6 +141,8 @@
    ELLIPSIS
    AT
    PIPE
+   LESSTHAN
+   CARET
 
    EOF])
 
