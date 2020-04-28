@@ -78,6 +78,7 @@
 (struct constraint:value-range (lo hi) #:prefab)
 (struct constraint:size (c) #:prefab)
 (struct constraint:user () #:prefab)
+(struct constraint:inner-type (cs) #:prefab)
 
 ;; Classes
 

@@ -138,9 +138,6 @@
 (define-nt ModuleHeader
   [(ModuleIdentifier DEFINITIONS TagDefault ExtensionDefault ASSIGN BEGIN Exports Imports)
    (fixme $1 $3 $4 $7 $8)])
-(define-nt ModuleMemberOrEnd
-  [(Assignment) $1]
-  [(END) eof])
 
 (define-nt ModuleIdentifier
   [(ModuleReference DefinitiveIdentifier)
@@ -506,7 +503,32 @@
 
 ;; PermittedAlphabet
 ;; PatternConstraint
-;; InnerTypeConstraints
+
+(define-nt InnerTypeConstraints
+  [(WITH COMPONENT SingleTypeConstraint) (constraint:inner-type $3)]
+  [(WITH COMPONENTS MultipleTypeConstraints) (constraint:inner-type $3)])
+(define-nt SingleTypeConstraint
+  [(Constraint) (list $1)])
+(define-nt MultipleTypeConstraints
+  [(FullSpecification) $1]
+  [(PartialSpecification) $1])
+(define-nt FullSpecification
+  [(LBRACE TypeConstraints RBRACE) $2])
+(define-nt PartialSpecification
+  [(LBRACE ELLIPSIS COMMA TypeConstraints RBRACE) $4])
+(define-nt TypeConstraints
+  [(NamedConstraint+) $1])
+(define-nt+ NamedConstraint+ NamedConstraint #:sep [COMMA])
+(define-nt NamedConstraint
+  [(Identifier ComponentConstraint) (ast:named $1 $2)])
+(define-nt ComponentConstraint
+  [(ValueConstraint PresenceConstraint) (fixme $1 $2)])
+(define-nt ValueConstraint
+  [(Constraint) $1]
+  [() #f])
+(define-nt PresenceConstraint
+  [(PRESENT) 'present] [(ABSENT) 'absent] [(OPTIONAL) 'optional] [() #f])
+
 ;; ContentsConstraint
 
 ;; 13.11 Constraint combinations
@@ -553,7 +575,7 @@
   #;[(PermittedAlphabet) $1]
   [(SizeConstraint) $1]
   [(TypeConstraint) $1]
-  #;[(InnerTypeConstraints) $1]
+  [(InnerTypeConstraints) $1]
   #;[(PatternConstraint) $1])
 
 ;; 13.12 Constraint extensibility
@@ -769,7 +791,8 @@
    (object-set:defn $2)])
 
 (define-nt ObjectSetSpec
-  [(RootElementSetSpec OptionalExtensionMarker) $1])
+  [(RootElementSetSpec OptionalExtensionMarker) $1]
+  [(ELLIPSIS) null])
 
 (define-nt ValueSet
   [(LBRACE ElementSetSpecs RBRACE)
@@ -978,26 +1001,40 @@
 ;; ============================================================
 (require (prefix-in yacc: parser-tools/cfg-parser))
 
-(define asn1-parser
+(define asn1-module-parser
   (parser #:parser-form yacc:cfg-parser
           #:start ModuleDefinition
           #:end EOF
           #:src-pos
           #:error (lambda args (error 'asn1-parser "failed: ~e" args))))
 
+(define asn1-assignments-parser
+  (parser #:parser-form yacc:cfg-parser
+          #:start AssignmentList
+          #:end EOF
+          #:src-pos
+          #:error (lambda args (error 'asn1-assignment-parser "failed: ~e" args))))
+
 ;; ============================================================
 
 (module+ main
-  (require parser-tools/lex)
-  (for ([file (current-command-line-arguments)])
-    (call-with-input-file* file
-      (lambda (in)
-        (port-count-lines! in)
-        (printf "~v\n" (asn1-parser (lambda ()
+  (require parser-tools/lex
+           racket/cmdline)
+  (define the-parser asn1-module-parser)
+  (command-line
+   #:once-any
+   [("-a") "Parse an assignment list" (set! the-parser asn1-assignments-parser)]
+   [("-m") "Parse a single module (default)" (void)]
+   #:args files
+   (for ([file files])
+     (call-with-input-file* file
+       (lambda (in)
+         (port-count-lines! in)
+         (printf "~v\n" (the-parser (lambda ()
                                       (define next (get-token in))
                                       (case (token-name (position-token-token next))
                                         #;[(word) (eprintf "next = ~e\n" next)])
-                                      next)))))))
+                                      next))))))))
 
 #;
 (module+ main-inc
@@ -1006,12 +1043,6 @@
             #:end
             #:src-pos
             #:error (lambda args (error 'asn1-header-parser "failed: ~e" args))))
-  (define asn1-member-parser
-    (parser #:parser-form yacc:cfg-parser
-            #:start ModuleMemberOrEnd
-            #:end
-            #:src-pos
-            #:error (lambda args (error 'asn1-member-parser "failed: ~e" args))))
   (require parser-tools/lex)
   (for ([file (current-command-line-arguments)])
     (call-with-input-file* file
