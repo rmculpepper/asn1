@@ -934,7 +934,7 @@
 
 (define-nt ParameterizedType
   [(SimpleDefinedType ActualParameterList)
-   (type:apply $1 $2)])
+   (expr:apply $1 $2)])
 ;; ParameterizedValueSetType ambiguous w/ ParameterizedType
 
 (define-nt SimpleDefinedType
@@ -943,7 +943,7 @@
 
 (define-nt ParameterizedValue
   [(SimpleDefinedValue ActualParameterList)
-   (value:apply $1 $2)])
+   (expr:apply $1 $2)])
 
 (define-nt SimpleDefinedValue
   [(ExternalValueReference) $1]
@@ -951,15 +951,15 @@
 
 (define-nt ParameterizedObjectClass
   [(DefinedObjectClass ActualParameterList)
-   (class:apply $1 $2)])
+   (expr:apply $1 $2)])
 
 (define-nt ParameterizedObject
   [(DefinedObject ActualParameterList)
-   (object:apply $1 $2)])
+   (expr:apply $1 $2)])
 
 (define-nt ParameterizedObjectSet
   [(DefinedObjectSet ActualParameterList)
-   (object-set:apply $1 $2)])
+   (expr:apply $1 $2)])
 
 (define-nt ActualParameterList
   [(LBRACE ActualParameter+ RBRACE) $2])

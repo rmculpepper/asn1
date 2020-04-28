@@ -53,7 +53,6 @@
 (struct type:any-defined-by (id) #:prefab)
 (struct type:from-object (object field) #:prefab)
 (struct type:instance-of (oid) #:prefab)
-(struct type:apply (type args) #:prefab)
 (struct type:select (id type) #:prefab)
 
 ;; Values
@@ -63,7 +62,6 @@
 (struct value:seq/set-of (values) #:prefab)
 (struct value:seq/set (values) #:prefab)
 (struct value:from-object (object field) #:prefab)
-(struct value:apply (value args) #:prefab)
 (struct value:annotated (type value) #:prefab)
 
 (struct named-value (name value) #:prefab)
@@ -98,11 +96,6 @@
 (struct sugar:reserved (word) #:prefab)
 
 (struct object-set:defn (elems) #:prefab)
-
-(struct class:apply (class args) #:prefab)
-(struct object:apply (object args) #:prefab)
-(struct object-set:apply (object-set args) #:prefab)
-
 
 ;; ----------------------------------------
 (define fixme vector)
