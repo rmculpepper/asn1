@@ -10,6 +10,15 @@
 
 (struct tag (class number) #:prefab)
 
+(struct opt:optional (thing) #:prefab)
+(struct opt:default (thing default) #:prefab)
+
+;; Module
+
+(struct mod:defn (id tagmode extmode exports imports assignments) #:prefab)
+(struct mod:id (name oid) #:prefab)
+(struct mod:import (syms modid) #:prefab)
+
 
 ;; References
 
@@ -17,7 +26,7 @@
 (struct ref:type (name) #:prefab)
 (struct ref:module (name) #:prefab)
 
-(struct ref:object-class (name) #:prefab)
+(struct ref:class (name) #:prefab)
 (struct ref:object (name) #:prefab)
 (struct ref:object-set (name) #:prefab)
 

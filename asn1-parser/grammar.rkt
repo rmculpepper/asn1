@@ -1,7 +1,10 @@
 #lang racket/base
-(require "parser-util.rkt"
+(require racket/match
+         "parser-util.rkt"
          "lexer.rkt"
          "ast.rkt")
+(provide asn1-module-parser
+         asn1-assignments-parser)
 
 (use-tokens! asn1-tokens)
 
@@ -16,7 +19,7 @@
 (define-nt ModuleReference [(Word/WORD) (ref:module $1)])
 (define-nt TypeReference [(Word/WORD) (ref:type $1)])
 
-(define-nt ObjectClassReference [(WORD) (ref:object-class $1)])
+(define-nt ObjectClassReference [(WORD) (ref:class $1)])
 (define-nt ObjectReference [(id) (ref:object $1)])
 (define-nt ObjectSetReference [(Word/WORD) (ref:object-set $1)])
 
@@ -129,19 +132,14 @@
 ;; 9.2 Module Structure (pdf 141)
 
 (define-nt ModuleDefinition
-  [(ModuleIdentifier DEFINITIONS TagDefault ExtensionDefault
-                     ASSIGN BEGIN ModuleBody END)
-   (fixme $1 $3 $4 $7)])
-
-;; For incremental parsing: This doesn't work with parser-tools
-;; because there's no suitable #:end token.
-(define-nt ModuleHeader
-  [(ModuleIdentifier DEFINITIONS TagDefault ExtensionDefault ASSIGN BEGIN Exports Imports)
-   (fixme $1 $3 $4 $7 $8)])
+  [(ModuleIdentifier DEFINITIONS TagDefault ExtensionDefault ASSIGN BEGIN ModuleBody END)
+   (let ()
+     (match-define (list imports exports assignments) $7)
+     (mod:defn $1 $3 $4 imports exports assignments))])
 
 (define-nt ModuleIdentifier
   [(ModuleReference DefinitiveIdentifier)
-   (fixme $1 $2)])
+   (mod:id $1 $2)])
 
 (define-nt DefinitiveIdentifier
   [(LBRACE DefinitiveObjectIdComponents+ RBRACE) $2]
@@ -152,7 +150,7 @@
 (define-nt DefinitiveObjectIdComponent
   [(Identifier) $1]
   [(Number) $1]
-  [(Identifier LPAREN Number RPAREN) (fixme $1 $3)])
+  [(Identifier LPAREN Number RPAREN) (ast:named $1 $3)])
 
 (define-nt TagDefault
   [(EXPLICIT TAGS) 'explicit]
@@ -166,32 +164,31 @@
 
 (define-nt ModuleBody
   [(Exports Imports AssignmentList)
-   (fixme $1 $2 $3)]
+   (list $1 $2 $3)]
   [()
-   (fixme null null null)])
+   (list null null null)])
 
 (define-nt Exports
   [(EXPORTS SEMICOLON) null]
   [(EXPORTS SymbolsExported+ SEMICOLON) $2]
-  [(EXPORTS ALL SEMICOLON) #f]
+  [(EXPORTS ALL SEMICOLON) 'all]
   [() #f])
 
 (define-nt+ SymbolsExported+ Symbol #:sep [COMMA])
 
 (define-nt Imports
-  [(IMPORTS SymbolsImported SEMICOLON)
-   $2]
+  [(IMPORTS SymbolsImported SEMICOLON) $2]
   [() #f])
 
 (define-nt* SymbolsImported SymbolsFromModule #:post [])
 
 (define-nt SymbolsFromModule
-  [(Symbols+ FROM GlobalModuleReference) (fixme $1 $3)])
+  [(Symbols+ FROM GlobalModuleReference) (mod:import $1 $3)])
 
 (define-nt+ Symbols+ Symbol #:sep [COMMA])
 
 (define-nt GlobalModuleReference
-  [(ModuleReference AssignedIdentifier) (fixme $1 $2)])
+  [(ModuleReference AssignedIdentifier) (mod:id $1 $2)])
 
 (define-nt AssignedIdentifier
   [(ObjectIdentifierValue) $1]
@@ -261,15 +258,15 @@
 (define-nt BuiltinType
   [(BIT STRING LBRACE NamedBit+ RBRACE) (type:bit-string $4)]
   [(BIT STRING) (type:bit-string null)]
-  [(BOOLEAN) (type 'boolean)]
+  [(BOOLEAN) (type 'BOOLEAN)]
   [(CHOICE LBRACE AlternativeTypeLists RBRACE) (type:choice $3)]
   [(ENUMERATED LBRACE Enumerations RBRACE) (type:enum $3)]
   [(INTEGER LBRACE NamedNumber+ RBRACE) (type:integer $3)]
   [(INTEGER) (type:integer #f)]
-  [(NULL) (type 'null)]
-  [(OBJECT IDENTIFIER) (type 'oid)]
-  [(OCTET STRING) (type 'octet-string)]
-  [(RELATIVE-OID) (type 'relative-oid)]
+  [(NULL) (type 'NULL)]
+  [(OBJECT IDENTIFIER) (type 'OBJECT-IDENTIFIER)]
+  [(OCTET STRING) (type 'OCTET-STRING)]
+  [(RELATIVE-OID) (type 'RELATIVE-OID)]
   [(SEQUENCE LBRACE ComponentTypeLists RBRACE) (type:sequence $3)]
   [(SEQUENCE OF Type) (type:sequence-of $3 #f)]
   [(SET LBRACE ComponentTypeLists RBRACE) (type:set $3)]
@@ -283,7 +280,7 @@
   [(CharacterStringType) $1]
   [(TaggedType) $1]
   ;; ----------------------------------------
-  [(ANY) (type 'any)]
+  [(ANY) (type 'ANY)]
   [(ANY DEFINED BY Identifier) (type:any-defined-by $4)])
 
 ;; ----------------------------------------
@@ -362,11 +359,11 @@
   (define-nt+ ComponentTypeList+ ComponentType #:sep [COMMA])
   (define-nt ComponentType
     [(NamedType) $1]
-    [(NamedType OPTIONAL) (fixme 'optional $1)]
-    [(NamedType DEFAULT Value) (fixme 'default $1 $3)]
+    [(NamedType OPTIONAL) (opt:optional $1)]
+    [(NamedType DEFAULT Value) (opt:default $1 $3)]
     [(COMPONENTS OF Type) (fixme 'components-of $3)])
   (define-nt NamedType
-    [(Identifier Type) (fixme $1 $2)]))
+    [(Identifier Type) (ast:named $1 $2)]))
 
 ;; CHOICE
 (begin
@@ -451,7 +448,7 @@
 (define-nt*+ NamedValue* NamedValue+ NamedValue #:sep [COMMA])
 
 (define-nt NamedValue
-  [(Identifier Value) (named-value $1 $2)])
+  [(Identifier Value) (ast:named $1 $2)])
 
 (define-nt SelectionType
   [(Identifier LESSTHAN Type) (type:select $1 $3)])
@@ -1019,6 +1016,7 @@
 
 (module+ main
   (require parser-tools/lex
+           racket/pretty
            racket/cmdline)
   (define the-parser asn1-module-parser)
   (command-line
@@ -1030,11 +1028,12 @@
      (call-with-input-file* file
        (lambda (in)
          (port-count-lines! in)
-         (printf "~v\n" (the-parser (lambda ()
-                                      (define next (get-token in))
-                                      (case (token-name (position-token-token next))
-                                        #;[(word) (eprintf "next = ~e\n" next)])
-                                      next))))))))
+         (pretty-print
+          (the-parser (lambda ()
+                        (define next (get-token in))
+                        (case (token-name (position-token-token next))
+                          #;[(word) (eprintf "next = ~e\n" next)])
+                        next))))))))
 
 #;
 (module+ main-inc
