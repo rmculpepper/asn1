@@ -30,37 +30,34 @@
 (define-nt ObjectSetFieldReference [(amp-Word/WORD) (ref:object-set-field $1)])
 
 (define-nt ReservedWORD
+  ;; Don't allow type names and value names as syntax literals
   [(ABSENT) 'ABSENT] [(ABSTRACT-SYNTAX) 'ABSTRACT-SYNTAX] [(ALL) 'ALL]
   [(APPLICATION) 'APPLICATION] [(AUTOMATIC) 'AUTOMATIC]
-  [(BEGIN) 'BEGIN] [(BIT) 'BIT] #;[(BMPString) 'BMPString] [(BOOLEAN) 'BOOLEAN] [(BY) 'BY]
+  [(BEGIN) 'BEGIN] [(BIT) 'BIT] #;[(BOOLEAN) 'BOOLEAN] [(BY) 'BY]
   [(CHARACTER) 'CHARACTER] [(CHOICE) 'CHOICE] [(CLASS) 'CLASS] [(COMPONENT) 'COMPONENT]
   [(COMPONENTS) 'COMPONENTS] [(CONSTRAINED) 'CONSTRAINED] [(CONTAINING) 'CONTAINING]
   [(DEFAULT) 'DEFAULT] [(DEFINITIONS) 'DEFINITIONS]
   [(EMBEDDED) 'EMBEDDED] [(ENCODED) 'ENCODED] [(END) 'END] [(ENUMERATED) 'ENUMERATED]
   [(EXCEPT) 'EXCEPT] [(EXPLICIT) 'EXPLICIT] [(EXPORTS) 'EXPORTS]
   [(EXTENSIBILITY) 'EXTENSIBILITY] [(EXTERNAL) 'EXTERNAL]
-  [(FALSE) 'FALSE] [(FROM) 'FROM]
-  #;[(GeneralizedTime) 'GeneralizedTime] #;[(GeneralString) 'GeneralString]
-  #;[(GraphicString) 'GraphicString]
-  #;[(IA5String) 'IA5String] [(IDENTIFIER) 'IDENTIFIER] [(IMPLICIT) 'IMPLICIT]
+  #;[(FALSE) 'FALSE] [(FROM) 'FROM]
+  [(IDENTIFIER) 'IDENTIFIER] [(IMPLICIT) 'IMPLICIT]
   [(IMPLIED) 'IMPLIED] [(IMPORTS) 'IMPORTS] [(INCLUDES) 'INCLUDES] [(INSTANCE) 'INSTANCE]
-  [(INTEGER) 'INTEGER] [(INTERSECTION) 'INTERSECTION] #;[(ISO646String) 'ISO646String]
+  #;[(INTEGER) 'INTEGER] [(INTERSECTION) 'INTERSECTION]
   [(MAX) 'MAX] [(MIN) 'MIN] [(MINUS-INFINITY) 'MINUS-INFINITY]
-  [(NULL) 'NULL] #;[(NumericString) 'NumericString]
-  [(OBJECT) 'OBJECT] #;[(ObjectDescriptor) 'ObjectDescriptor] [(OCTET) 'OCTET] [(OF) 'OF]
+  #;[(NULL) 'NULL]
+  [(OBJECT) 'OBJECT] [(OCTET) 'OCTET] [(OF) 'OF]
   [(OPTIONAL) 'OPTIONAL]
-  [(PATTERN) 'PATTERN] [(PDV) 'PDV] [(PLUS-INFINITY) 'PLUS-INFINITY] [(PRESENT) 'PRESENT]
-  #;[(PrintableString) 'PrintableString] [(PRIVATE) 'PRIVATE]
-  [(REAL) 'REAL] [(RELATIVE-OID) 'RELATIVE-OID]
+  [(PATTERN) 'PATTERN] [(PDV) 'PDV] #;[(PLUS-INFINITY) 'PLUS-INFINITY] [(PRESENT) 'PRESENT]
+  [(PRIVATE) 'PRIVATE]
+  #;[(REAL) 'REAL] #;[(RELATIVE-OID) 'RELATIVE-OID]
   [(SEQUENCE) 'SEQUENCE] [(SET) 'SET] [(SIZE) 'SIZE] [(STRING) 'STRING] [(SYNTAX) 'SYNTAX]
-  #;[(T61String) 'T61String] [(TAGS) 'TAGS] #;[(TeletexString) 'TeletexString] [(TRUE) 'TRUE]
+  [(TAGS) 'TAGS] #;[(TRUE) 'TRUE]
   [(TYPE-IDENTIFIER) 'TYPE-IDENTIFIER]
   [(UNION) 'UNION] [(UNIQUE) 'UNIQUE] [(UNIVERSAL) 'UNIVERSAL]
-  #;[(UniversalString) 'UniversalString] #;[(UTCTime) 'UTCTime] #;[(UTF8String) 'UTF8String]
-  #;[(VideotexString) 'VideotexString] #;[(VisibleString) 'VisibleString]
   [(WITH) 'WITH]
 
-  [(ANY) 'ANY] [(DEFINED) 'DEFINED])
+  #;[(ANY) 'ANY] [(DEFINED) 'DEFINED])
 
 
 ;; ============================================================
@@ -768,9 +765,9 @@
 
 (define-nt Literal
   [(WORD) (sugar:literal $1)]
-  [(ReservedWORD) (sugar:reserved $1)]
+  [(ReservedWORD) (sugar:literal $1)]
   ;; FIXME: Any uppercase reserved word ... :(
-  [(COMMA) (sugar:comma)])
+  [(COMMA) (sugar:literal #\,)])
 
 (define-nt DefinedSyntax
   [(LBRACE DefinedSyntaxToken* RBRACE) $2])
@@ -778,8 +775,8 @@
 (define-nt* DefinedSyntaxToken* DefinedSyntaxToken #:post [])
 
 (define-nt DefinedSyntaxToken
-  [(Literal) $1]
-  [(Setting) $1])
+  [(Setting) $1]
+  [(Literal) $1])
 
 ;; 15.5 Value sets and information object sets (pdf 357)
 
