@@ -47,6 +47,7 @@
 ;; ============================================================
 ;; Translation
 
+(define current-fixme-mode (make-parameter 'comment))
 (define current-env (make-parameter (hash)))
 
 (define (decl-of-module m)
@@ -133,37 +134,39 @@
     [(type:sequence fields) `(SEQUENCE ,@(map seq/set-field-of fields))]
     [(type:set fields) `(SET ,@(map seq/set-field-of fields))]
     [(type:sequence-of type size-c)
-     `(SEQUENCE-OF ,(expr-of type) ,@(if size-c (comments "SIZE constraint") null))]
+     (begin/fixme (and size-c `(Constraint ,(expr-of size-c)))
+                  `(SEQUENCE-OF ,(expr-of type)))]
     [(type:set-of type size-c)
-     `(SET-OF ,(expr-of type) ,@(if size-c (comments "SIZE constraint") null))]
+     (begin/fixme (and size-c `(Constraint ,(expr-of size-c)))
+                  `(SET-OF ,(expr-of type)))]
     [(type:string subtype) subtype]
     [(type:tagged (tag tagclass tagnum) mode type)
-     `(TAG ,(match tagclass
-              ['universal '#:universal]
-              ['application '#:application]
-              ['context-sensitive '#:context-sensitive]
-              ['private '#:private])
-           ,@(match mode
-               ['implicit '(#:implicit)]
-               ['explicit '(#:explicit)]
-               [#f '(#:explicit)]) ;; FIXME
-           ,tagnum
-           ,(expr-of type))]
+     (begin/fixme
+       (and (not mode) "unknown tag mode")
+       `(TAG ,(match tagclass
+                ['universal '#:universal]
+                ['application '#:application]
+                ['context-sensitive '#:context-sensitive]
+                ['private '#:private])
+             ,@(match mode
+                 ['implicit '(#:implicit)]
+                 ['explicit '(#:explicit)]
+                 [#f '(#:explicit)]) ;; FIXME
+             ,tagnum
+             ,(expr-of type)))]
     ;; ----
     [(type:constrained (type:from-class class fields) (constraint:table objset ats))
      `(object-set-ref ,(expr-of class) ,(expr-of objset) (quote ,(map id-of fields))
                       ,@(if (pair? ats) (comments "(with @-constraints)") null))]
     [(type:constrained type constraint)
-     `(begin
-        (FIXME '(Constraint ,(expr-of constraint)))
-        ,(expr-of type))]
+     (begin/fixme `(Constraint ,(expr-of constraint)) (expr-of type))]
     [(type:any-defined-by id)
      `(begin ANY ,@(comments (format "DEFINED BY ~s" id)))]
     [(type:from-object object field) (do-field-ref object field)]
     [(type:from-class class field)
      `(class-ref ,(expr-of class) ',(map id-of field))]
-    [(type:instance-of oid) `(FIXME (instance-of ,(expr-of oid)))]
-    [(type:select id type) `(FIXME (select ,id ,(expr-of type)))]
+    [(type:instance-of oid) `(FIXME '(instance-of ,(expr-of oid)))]
+    [(type:select id type) `(FIXME '(select ,id ,(expr-of type)))]
 
     ;; ----------------------------------------
     ;; VALUE
@@ -172,13 +175,13 @@
     ['NULL 'NULL] ;; Ambiguous type vs value! NULL type probably more common. (FIXME?)
     ['TRUE #t]
     ['FALSE #f]
-    [(value:bstring s) `(FIXME (bstring ,s))] ;; FIXME: octet string or bitstring?
-    [(value:hstring s) `(FIXME (hstring ,s))] ;; FIXME: as octet string or bitstring?
+    [(value:bstring s) `(FIXME '(bstring ,s))] ;; FIXME: octet string or bitstring?
+    [(value:hstring s) `(FIXME '(hstring ,s))] ;; FIXME: as octet string or bitstring?
     [(? string? s) s]
     ;; ----
     [(value:annotated type value)
      (expr-of value #:type type)]
-    [(value:bit-list bits) `(FIXME (bits (list ,@bits)))]
+    [(value:bit-list bits) `(FIXME '(bits (list ,@bits)))]
     [(value:choice name value)
      `(list (quote ,name) ,(expr-of value))]
     [(value:oid/reloid cs)
@@ -211,8 +214,7 @@
          [(constraint:single-value v)
           `(list ,(expr-of v #:kind type))]
          [(ref:object-set name) name] ;; grammar oddity ???
-         [_
-          `(FIXME (Value-Set ,vs))]))]
+         [_ `(FIXME '(Value-Set ,vs))]))]
     [(value-set:from-object object field) (do-field-ref object field)]
 
     ;; ----------------------------------------
@@ -235,7 +237,7 @@
      (cond [(desugar-object sugar class)
             => (lambda (decls)
                  (expr-of (object:defn decls)))]
-           [else `(FIXME (Sugar ,sugar ,class ,(lookup-class class)))])]
+           [else `(FIXME '(Sugar ,sugar ,class ,(lookup-class class)))])]
     [(object:from-object object field) (do-field-ref object field)]
 
     ;; ----------------------------------------
@@ -252,8 +254,7 @@
          [(ref:object name) `(list ,name)]
          [(? object:defn? obj) `(list ,(expr-of obj #:class class))]
          [(? object:sugar? obj) `(list ,(expr-of obj #:class class))]
-         [_
-          `(FIXME (Objects ,objs))]))]
+         [_ `(FIXME '(Objects ,objs))]))]
     [(object-set:from-object object field) (do-field-ref object field)]
 
     ;; ----------------------------------------
@@ -318,8 +319,7 @@
 (define (choice-alt-of a)
   (match a
     [(ast:named name type)
-     `[,name ,(expr-of type)]]
-    [_ `(FIXME (Alt ,a))]))
+     `[,name ,(expr-of type)]]))
 
 (define (const-oid-component? c)
   (or (exact-nonnegative-integer? c) (ast:named? c)))
@@ -371,6 +371,15 @@
 
 (define (begin/comment c expr)
   `(begin ,@(comments c) ,expr))
+
+(define (begin/fixme fixme expr)
+  (if fixme
+      (case (current-fixme-mode)
+        [(fixme) `(begin (FIXME ',fixme) ,expr)]
+        [(quote) `(begin '(FIXME ,fixme) ,expr)]
+        [(comment) `(begin ,@(comments (format "FIXME ~s" fixme)) ,expr)]
+        [(omit) expr])
+      expr))
 
 ;; ============================================================
 
