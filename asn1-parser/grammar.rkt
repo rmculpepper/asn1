@@ -15,19 +15,19 @@
 
 (define-nt Identifier [(id) $1])
 
-(define-nt ValueReference [(id) (ref:value $1)])
-(define-nt ModuleReference [(Word/WORD) (ref:module $1)])
-(define-nt TypeReference [(Word/WORD) (ref:type $1)])
+(define-nt ValueReference [(id) (ref:id $1)])
+(define-nt ModuleReference [(Word/WORD) (ref:Word $1)])
+(define-nt TypeReference [(Word/WORD) (ref:Word $1)])
 
-(define-nt ObjectClassReference [(WORD) (ref:class $1)])
-(define-nt ObjectReference [(id) (ref:object $1)])
-(define-nt ObjectSetReference [(Word/WORD) (ref:object-set $1)])
+(define-nt ObjectClassReference [(WORD) (ref:Word $1)])
+(define-nt ObjectReference [(id) (ref:id $1)])
+(define-nt ObjectSetReference [(Word/WORD) (ref:Word $1)])
 
-(define-nt TypeFieldReference [(amp-Word/WORD) (ref:type-field $1)])
-(define-nt ValueFieldReference [(amp-id) (ref:value-field $1)])
-(define-nt ValueSetFieldReference [(amp-Word/WORD) (ref:value-set-field $1)])
-(define-nt ObjectFieldReference [(amp-id) (ref:object-field $1)])
-(define-nt ObjectSetFieldReference [(amp-Word/WORD) (ref:object-set-field $1)])
+(define-nt TypeFieldReference [(amp-Word/WORD) (ref:&Word $1)])
+(define-nt ValueFieldReference [(amp-id) (ref:&id $1)])
+(define-nt ValueSetFieldReference [(amp-Word/WORD) (ref:&Word $1)])
+(define-nt ObjectFieldReference [(amp-id) (ref:&id $1)])
+(define-nt ObjectSetFieldReference [(amp-Word/WORD) (ref:&Word $1)])
 
 (define-nt ReservedWORD
   ;; Don't allow type names and value names as syntax literals

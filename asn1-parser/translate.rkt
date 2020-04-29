@@ -164,11 +164,13 @@
       [[_ _] #f])))
 
 (define (field-ref? x)
-  (or (ref:type-field? x)
-      (ref:value-field? x)
-      (ref:value-set-field? x)
-      (ref:object-field? x)
-      (ref:object-set-field? x)))
+  (or (ref:&id? x)
+      (ref:&Word? x)
+      #;(or (ref:type-field? x)
+            (ref:value-field? x)
+            (ref:value-set-field? x)
+            (ref:object-field? x)
+            (ref:object-set-field? x))))
 
 
 ;; ============================================================
@@ -232,17 +234,22 @@
 
 (define (id-of ref)
   (match ref
-    [(ref:value name) name]
-    [(ref:type name) name]
-    [(ref:module name) name]
-    [(ref:class name) name]
-    [(ref:object name) name]
-    [(ref:object-set name) name]
-    [(ref:type-field name) name]
-    [(ref:value-field name) name]
-    [(ref:value-set-field name) name]
-    [(ref:object-field name) name]
-    [(ref:object-set-field name) name]))
+    [(ref:id name) name]
+    [(ref:Word name) name]
+    [(ref:&id name) name]
+    [(ref:&Word name) name]
+    ;; [(ref:value name) name]
+    ;; [(ref:type name) name]
+    ;; [(ref:module name) name]
+    ;; [(ref:class name) name]
+    ;; [(ref:object name) name]
+    ;; [(ref:object-set name) name]
+    ;; [(ref:type-field name) name]
+    ;; [(ref:value-field name) name]
+    ;; [(ref:value-set-field name) name]
+    ;; [(ref:object-field name) name]
+    ;; [(ref:object-set-field name) name]
+    ))
 
 (define (formal-of p)
   (match p [(param gov ref) (id-of ref)]))
@@ -252,7 +259,7 @@
 
     ;; ----------------------------------------
     ;; TYPE
-    [(ref:type name) name]
+    #;[(ref:type name) name]
     [(type name) name]
     [(type:bit-string _) 'BIT-STRING]
     [(type:choice alts) `(CHOICE ,@(map choice-alt-of alts))]
@@ -297,7 +304,7 @@
 
     ;; ----------------------------------------
     ;; VALUE
-    [(ref:value name) name]
+    #;[(ref:value name) name]
     [(value v) v]
     [(value:bstring s) `(FIXME '(bstring ,s))]
     [(value:hstring s) `(FIXME '(hstring ,s))]
@@ -335,13 +342,13 @@
           (make-append (loop vs1) (loop vs2))]
          [(constraint:single-value v)
           `(list ,(expr-of v #:kind type))]
-         [(ref:object-set name) name] ;; grammar oddity ???
+         [(ref:id name) name]
          [_ `(FIXME '(Value-Set ,vs))]))]
     [(value-set:from-object object field) (do-field-ref object field)]
 
     ;; ----------------------------------------
     ;; CLASS
-    [(ref:class name) name]
+    #;[(ref:class name) name]
     [(class:defn fields _)
      `(ObjectClass ,@(map sexpr-of-class-field fields))]
     [(class:type-identifier)
@@ -349,7 +356,7 @@
 
     ;; ----------------------------------------
     ;; OBJECT
-    [(ref:object name) name]
+    #;[(ref:object name) name]
     [(object:defn decls)
      `(hasheq ,@(append* (map (match-lambda
                                 [(ast:named name value)
@@ -364,7 +371,7 @@
 
     ;; ----------------------------------------
     ;; OBJECT SET
-    [(ref:object-set name) name]
+    #;[(ref:object-set name) name]
     [(object-set:defn objs)
      (let loop ([objs objs])
        (match objs
@@ -372,8 +379,8 @@
           (make-append (loop objs1) (loop objs2))]
          [(constraint:single-value obj)
           `(list ,(expr-of obj #:class class))]
-         [(ref:object-set name) name]
-         [(ref:object name) `(list ,name)]
+         [(ref:Word name) name]
+         [(ref:id name) `(list ,name)]
          [(? object:defn? obj) `(list ,(expr-of obj #:class class))]
          [(? object:sugar? obj) `(list ,(expr-of obj #:class class))]
          [_ `(FIXME '(Objects ,objs))]))]
@@ -405,6 +412,8 @@
 
     ;; ----------------------------------------
     ;; GENERIC
+    [(ref:id name) name]
+    [(ref:Word name) name]
     [(ref:dot modref ref)
      (string->symbol (format "~s.~s" (id-of modref) (id-of ref)))]
     [(expr:apply thing args)
@@ -453,7 +462,7 @@
 
 (define (expr-of-oid-component c)
   (match c
-    [(ref:value name) name]
+    [(ref:id name) name]
     [(? exact-nonnegative-integer? n) n]
     [(ast:named name num) num]))
 

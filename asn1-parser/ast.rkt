@@ -242,21 +242,28 @@
 
 ;; References
 
-(struct ref:value (name) #:prefab)
-(struct ref:type (name) #:prefab)
-(struct ref:module (name) #:prefab)
-
-(struct ref:class (name) #:prefab)
-(struct ref:object (name) #:prefab)
-(struct ref:object-set (name) #:prefab)
-
-(struct ref:type-field (name) #:prefab)
-(struct ref:value-field (name) #:prefab)
-(struct ref:value-set-field (name) #:prefab)
-(struct ref:object-field (name) #:prefab)
-(struct ref:object-set-field (name) #:prefab)
+(struct ref:id (name) #:prefab)
+(struct ref:Word (name) #:prefab)
+(struct ref:&id (name) #:prefab)
+(struct ref:&Word (name) #:prefab)
 
 (struct ref:dot (modref ref) #:prefab)
+
+(begin
+  (struct ref:module ref:Word () #:prefab)
+
+  (struct ref:type ref:Word () #:prefab)
+  (struct ref:value ref:id () #:prefab)
+
+  (struct ref:class ref:Word () #:prefab)
+  (struct ref:object ref:id () #:prefab)
+  (struct ref:object-set ref:Word () #:prefab)
+
+  (struct ref:type-field ref:&Word () #:prefab)
+  (struct ref:value-field ref:&id () #:prefab)
+  (struct ref:value-set-field ref:&Word () #:prefab)
+  (struct ref:object-field ref:&id () #:prefab)
+  (struct ref:object-set-field ref:&Word () #:prefab))
 
 ;; Assignments
 
