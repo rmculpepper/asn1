@@ -169,13 +169,13 @@
   [(EXPORTS SEMICOLON) null]
   [(EXPORTS SymbolsExported+ SEMICOLON) $2]
   [(EXPORTS ALL SEMICOLON) 'all]
-  [() #f])
+  [() 'all])
 
 (define-nt+ SymbolsExported+ Symbol #:sep [COMMA])
 
 (define-nt Imports
   [(IMPORTS SymbolsImported SEMICOLON) $2]
-  [() #f])
+  [() null])
 
 (define-nt* SymbolsImported SymbolsFromModule #:post [])
 
@@ -204,7 +204,7 @@
   [(ObjectSetReference) $1])
 
 (define-nt ParameterizedReference
-  [(Reference) $1]
+  #;[(Reference) $1] ;; redundant
   [(Reference LBRACE RBRACE) $1])
 
 ;; ============================================================
@@ -217,7 +217,7 @@
   #;[(ParameterizedValueSetType) $1])
 
 (define-nt ExternalTypeReference
-  [(ModuleReference DOT TypeReference) (expr:dot $1 $3)])
+  [(ModuleReference DOT TypeReference) (ref:dot $1 $3)])
 
 (define-nt DefinedValue
   [(ExternalValueReference) $1]
@@ -225,7 +225,7 @@
   [(ParameterizedValue) $1])
 
 (define-nt ExternalValueReference
-  [(ModuleReference DOT ValueReference) (expr:dot $1 $3)])
+  [(ModuleReference DOT ValueReference) (ref:dot $1 $3)])
 
 (define-nt DefinedObjectClass
   [(ExternalObjectClassReference) $1]
@@ -233,21 +233,21 @@
   [(UsefulObjectClassReference) $1])
 
 (define-nt ExternalObjectClassReference
-  [(ModuleReference DOT ObjectClassReference) (expr:dot $1 $3)])
+  [(ModuleReference DOT ObjectClassReference) (ref:dot $1 $3)])
 
 (define-nt DefinedObject
   [(ExternalObjectReference) $1]
   [(ObjectReference) $1])
 
 (define-nt ExternalObjectReference
-  [(ModuleReference DOT ObjectReference) (expr:dot $1 $3)])
+  [(ModuleReference DOT ObjectReference) (ref:dot $1 $3)])
 
 (define-nt DefinedObjectSet
   [(ExternalObjectSetReference) $1]
   [(ObjectSetReference) $1])
 
 (define-nt ExternalObjectSetReference
-  [(ModuleReference DOT ObjectSetReference) (expr:dot $1 $3)])
+  [(ModuleReference DOT ObjectSetReference) (ref:dot $1 $3)])
 
 ;; ============================================================
 ;; TYPES:
@@ -259,7 +259,7 @@
   [(CHOICE LBRACE AlternativeTypeLists RBRACE) (type:choice $3)]
   [(ENUMERATED LBRACE Enumerations RBRACE) (type:enum $3)]
   [(INTEGER LBRACE NamedNumber+ RBRACE) (type:integer $3)]
-  [(INTEGER) (type:integer #f)]
+  [(INTEGER) (type:integer null)]
   [(NULL) (type 'NULL)]
   [(OBJECT IDENTIFIER) (type 'OBJECT-IDENTIFIER)]
   [(OCTET STRING) (type 'OCTET-STRING)]
@@ -272,7 +272,7 @@
   ;;[(EmbeddedPDVType) $1]
   ;;[(ExternalType) $1]
   [(ObjectClassFieldType) $1]
-  ;;[(InstanceOfType) $1]
+  [(InstanceOfType) $1]
   ;;[(RealType) $1]
   [(CharacterStringType) $1]
   [(TaggedType) $1]
@@ -313,6 +313,8 @@
 
 ;; ----------------------------------------
 ;; 11 Character string types (pdf 199)
+
+;; FIXME: un-reserve these names, just parse them as TypeReferences ?
 
 (define-nt CharacterStringType
   ;; RestrictedCharacterStringType
@@ -393,6 +395,9 @@
     [(Number) $1]
     [(DefinedValue) $1]))
 
+(define-nt SelectionType
+  [(Identifier LESSTHAN Type) (type:select $1 $3)])
+
 ;; ============================================================
 ;; VALUES:
 
@@ -401,10 +406,10 @@
   [(TRUE) '#t]
   [(FALSE) '#f]
   [(num) $1]
-  [(bstring) $1] ;; BIT STRING, OCTET STRING
-  [(hstring) $1] ;; BIT STRING, OCTET STRING
+  [(bstring) (value:bstring $1)] ;; BIT STRING, OCTET STRING
+  [(hstring) (value:hstring $1)] ;; BIT STRING, OCTET STRING
   [(cstring) $1] ;; character string types
-  [(IdentifierList) $1] ;; --- bit string value
+  [(IdentifierList) (value:bit-list $1)] ;; --- bit string value
   [(Identifier COLON Value) (value:choice $1 $3)]
   [(LBRACE Value* RBRACE) (value:seq/set-of $2)]
   [(LBRACE NamedValue* RBRACE) (value:seq/set $2)]
@@ -446,9 +451,6 @@
 
 (define-nt NamedValue
   [(Identifier Value) (ast:named $1 $2)])
-
-(define-nt SelectionType
-  [(Identifier LESSTHAN Type) (type:select $1 $3)])
 
 ;; ============================================================
 ;; 13 Subtype constraints (pdf 285)
@@ -493,16 +495,18 @@
   [(MAX) 'MAX])
 
 (define-nt SizeConstraint
-  [(SIZE Constraint) $2])
+  [(SIZE Constraint) (constraint:size $2)])
 
 ;; PermittedAlphabet
-;; PatternConstraint
+
+(define-nt PatternConstraint
+  [(PATTERN Value) (constraint:pattern $2)])
 
 (define-nt InnerTypeConstraints
   [(WITH COMPONENT SingleTypeConstraint) (constraint:inner-type $3)]
   [(WITH COMPONENTS MultipleTypeConstraints) (constraint:inner-type $3)])
 (define-nt SingleTypeConstraint
-  [(Constraint) (list $1)])
+  [(Constraint) $1])
 (define-nt MultipleTypeConstraints
   [(FullSpecification) $1]
   [(PartialSpecification) $1])
@@ -516,14 +520,17 @@
 (define-nt NamedConstraint
   [(Identifier ComponentConstraint) (ast:named $1 $2)])
 (define-nt ComponentConstraint
-  [(ValueConstraint PresenceConstraint) (fixme $1 $2)])
+  [(ValueConstraint PresenceConstraint) (constraint:component $1 $2)])
 (define-nt ValueConstraint
   [(Constraint) $1]
   [() #f])
 (define-nt PresenceConstraint
   [(PRESENT) 'present] [(ABSENT) 'absent] [(OPTIONAL) 'optional] [() #f])
 
-;; ContentsConstraint
+(define-nt ContentsConstraint
+  [(CONTAINING Type) (constraint:containing $2)]
+  [(ENCODED BY Value) (constraint:containing/encoded-by #f $3)]
+  [(CONTAINING Type ENCODED BY Value) (constraint:containing/encoded-by $2 $5)])
 
 ;; 13.11 Constraint combinations
 
@@ -568,9 +575,9 @@
   [(ValueRange) $1]
   #;[(PermittedAlphabet) $1]
   [(SizeConstraint) $1]
-  [(TypeConstraint) $1]
+  #;[(TypeConstraint) $1]
   [(InnerTypeConstraints) $1]
-  #;[(PatternConstraint) $1])
+  [(PatternConstraint) $1])
 
 ;; 13.12 Constraint extensibility
 
@@ -626,60 +633,49 @@
   [(ObjectSetFieldSpec) $1])
 
 (define-nt TypeFieldSpec
-  [(TypeFieldReference TypeOptionalitySpec) (fixme 'type-field $1 $2)])
+  [(TypeFieldReference TypeOptionalitySpec) (field:type $1 $2)])
 
 (define-nt TypeOptionalitySpec
-  [(OPTIONAL) 'optional]
-  [(DEFAULT Type) (fixme 'default $2)]
-  [() #f])
+  [(OPTIONAL) (opt:optional #f)] [(DEFAULT Type) (opt:default #f $2)] [() #f])
 
 (define-nt FixedTypeValueFieldSpec
   [(ValueFieldReference Type Unique ValueOptionalitySpec)
-   (fixme 'fixed-type-value-field $1 $2 $3 $4)])
+   (field:value/fixed-type $1 $2 $3 $4)])
 
 (define-nt Unique
-  [(UNIQUE) 'unique]
-  [() #f])
+  [(UNIQUE) 'unique] [() #f])
 
 (define-nt ValueOptionalitySpec
-  [(OPTIONAL) 'optional]
-  [(DEFAULT Value) (fixme 'default $2)]
-  [() #f])
+  [(OPTIONAL) (opt:optional #f)] [(DEFAULT Value) (opt:default #f $2)] [() #f])
 
 (define-nt VariableTypeValueFieldSpec
   [(ValueFieldReference Type-FieldName ValueOptionalitySpec)
-   (fixme 'variable-type-value-field $1 $2 $3)])
+   (field:value/var-type $1 $2 $3)])
 
 (define-nt FixedTypeValueSetFieldSpec
   [(ValueSetFieldReference Type ValueSetOptionalitySpec)
-   (fixme 'fixed-type-value-set-field $1 $2 $3)])
+   (field:value-set/fixed-type $1 $2 $3)])
 
 (define-nt ValueSetOptionalitySpec
-  [(OPTIONAL) 'optional]
-  [(DEFAULT ValueSet) (fixme 'default $2)]
-  [() #f])
+  [(OPTIONAL) (opt:optional #f)] [(DEFAULT ValueSet) (opt:default #f $2)] [() #f])
 
 (define-nt VariableTypeValueSetFieldSpec
   [(ValueSetFieldReference Type-FieldName ValueSetOptionalitySpec)
-   (fixme 'variable-type-value-set-field $1 $2 $3)])
+   (field:value-set/var-type $1 $2 $3)])
 
 (define-nt ObjectFieldSpec
   [(ObjectFieldReference DefinedObjectClass ObjectOptionalitySpec)
-   (fixme 'object-field $1 $2 $3)])
+   (field:object $1 $2 $3)])
 
 (define-nt ObjectOptionalitySpec
-  [(OPTIONAL) 'optional]
-  [(DEFAULT Object) (fixme 'default $2)]
-  [() #f])
+  [(OPTIONAL) (opt:optional #f)] [(DEFAULT Object) (opt:default #f $2)] [() #f])
 
 (define-nt ObjectSetFieldSpec
   [(ObjectSetFieldReference DefinedObjectClass ObjectSetOptionalitySpec)
-   (fixme 'object-set-field $1 $2 $3)])
+   (field:object-set $1 $2 $3)])
 
 (define-nt ObjectSetOptionalitySpec
-  [(OPTIONAL) 'optional]
-  [(DEFAULT ObjectSet) (fixme 'default $2)]
-  [() #f])
+  [(OPTIONAL) (opt:optional #f)] [(DEFAULT ObjectSet) (opt:default #f $2)] [() #f])
 
 (begin ;; DEPRECATED: imprecise
   (define-nt FieldName
@@ -766,7 +762,6 @@
 (define-nt Literal
   [(WORD) (sugar:literal $1)]
   [(ReservedWORD) (sugar:literal $1)]
-  ;; FIXME: Any uppercase reserved word ... :(
   [(COMMA) (sugar:literal #\,)])
 
 (define-nt DefinedSyntax
@@ -831,48 +826,48 @@
 ;; 15.7 (pdf 369)
 
 (define-nt ObjectClassFieldType
-  [(DefinedObjectClass DOT FieldName) (expr:dot $1 $3)])
+  [(DefinedObjectClass DOT FieldName)
+   (type:from-class $1 $3)])
 
-(define-nt ObjectClassFieldValue
-  [(OpenTypeFieldVal) $1]
-  [(FixedTypeFieldVal) $1])
-
-(define-nt OpenTypeFieldVal
-  [(Type COLON Value) (value:annotated $1 $3)]
-  [(FixedTypeFieldVal) $1])
-
-(define-nt FixedTypeFieldVal
-  [(BuiltinValue) $1]
-  [(ReferencedValue) $1])
+;; (define-nt ObjectClassFieldValue
+;;   [(OpenTypeFieldVal) $1]
+;;   [(FixedTypeFieldVal) $1])
+;; (define-nt OpenTypeFieldVal
+;;   [(Type COLON Value) (value:annotated $1 $3)]
+;;   [(FixedTypeFieldVal) $1])
+;; (define-nt FixedTypeFieldVal
+;;   [(BuiltinValue) $1]
+;;   [(ReferencedValue) $1])
 
 (define-nt GeneralConstraint
   [(UserDefinedConstraint) $1]
   [(TableConstraint) $1]
-  #;[(ContentsConstraint) $1])
+  [(ContentsConstraint) $1])
 
 (define-nt TableConstraint
   [(SimpleTableConstraint) $1]
   [(ComponentRelationConstraint) $1])
 
 (define-nt SimpleTableConstraint
-  [(ObjectSet) $1])
+  [(ObjectSet) (constraint:table $1 null)])
 
 (define-nt ComponentRelationConstraint
-  [(LBRACE DefinedObjectSet RBRACE LBRACE AtNotation+ RBRACE) (fixme $2 $5)])
+  [(LBRACE DefinedObjectSet RBRACE LBRACE AtNotation+ RBRACE)
+   (constraint:table $2 $5)])
 
 (define-nt+ AtNotation+ AtNotation #:sep [COMMA])
 
 (define-nt AtNotation
-  [(AT ComponentIdList) (cons 'at $2)]
-  [(AT DOT ComponentIdList) (cons 'at-dot $3)])
+  [(AT ComponentIdList) (cons '#:outer $2)]
+  [(AT DOT ComponentIdList) (cons '#:inner $3)])
 
 (define-nt ComponentIdList
   [(Identifier+) $1])
 
 (define-nt+ Identifier.+ Identifier #:sep [DOT])
 
-(define-nt TypeConstraint
-  [(Type) $1])
+;; (define-nt TypeConstraint
+;;   [(Type) $1])
 
 ;; 15.9 (pdf 383)
 
@@ -932,13 +927,11 @@
 (define-nt+ Parameter+ Parameter #:sep [COMMA])
 
 (define-nt Parameter
-  [(ParamGovernor COLON DummyReference) (fixme $1 $3)]
-  [(DummyReference) (fixme $1)])
-
+  [(ParamGovernor COLON DummyReference) (param $1 $3)]
+  [(DummyReference) (param #f $1)])
 (define-nt ParamGovernor
   [(Governor) $1]
   [(DummyGovernor) $1])
-
 (define-nt Governor
   [(Type) $1]
   [(DefinedObjectClass) $1])

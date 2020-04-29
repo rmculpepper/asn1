@@ -27,7 +27,7 @@
 
 (define (desugar sugar pattern)
   (let loop ([sugar sugar] [pattern pattern] [acc null])
-    (eprintf "desugar:\n ~v\n ~v\n ~v\n\n" sugar pattern acc)
+    #;(eprintf "desugar:\n ~v\n ~v\n ~v\n\n" sugar pattern acc)
     (match* [sugar pattern]
       [[(cons lit sugar) (cons lit pattern)] ;; nonlinear!
        (loop sugar pattern acc)]
@@ -102,8 +102,8 @@
     [(ref:object-field name) name]
     [(ref:object-set-field name) name]))
 
-(define (formal-of param)
-  '(FIXME-PARAM))
+(define (formal-of p)
+  (match p [(param gov ref) (id-of ref)]))
 
 (define (expr-of x #:kind [kind #f])
   (match x
@@ -117,11 +117,20 @@
     [(type:integer _) 'INTEGER]
     [(type:sequence fields) `(SEQUENCE ,@(map seq/set-field-of fields))]
     [(type:set fields) `(SET ,@(map seq/set-field-of fields))]
-    [(type:set-of type size-c) `(SET-OF ,(expr-of type))] ;; FIXME: size-c
-    [(type:sequence-of type size-c) `(SEQUENCE-OF ,(expr-of type))] ;; FIXME: size-c
+    [(type:set-of type size-c)
+     `(SET-OF ,(expr-of type) ,@(if size-c (comments "SIZE constraint") null))]
+    [(type:sequence-of type size-c)
+     `(SEQUENCE-OF ,(expr-of type) ,@(if size-c (comments "SIZE constraint") null))]
     [(type:string subtype) subtype]
-    [(type:constrained type constraint) (expr-of type)] ;; FIXME
-    [(type:any-defined-by id) 'ANY] ;; FIXME
+    [(type:constrained (type:from-class class fields) (constraint:table objset ats))
+     `(object-set-ref ,(expr-of class) ,(expr-of objset) (quote ,(map id-of fields))
+                      ,@(if (pair? ats) (comments "(with @-constraints)") null))]
+    [(type:constrained type constraint)
+     `(begin
+        (FIXME '(Constraint ,constraint))
+        ,(expr-of type))]
+    [(type:any-defined-by id)
+     `(begin ANY ,@(comments (format "defined by ~s" id)))]
     [(type:enum _) 'ENUMERATED]
     [(type:tagged (tag tagclass tagnum) mode type)
      `(TAG ,(match tagclass
@@ -138,7 +147,6 @@
     #;[(type:from-object object field) '(FIXME)]
     #;[(type:instance-of oid) '(FIXME)]
     #;[(type:select id type) '(FIXME)]
-    #;[(expr:apply type args) '(FIXME)]
     [(ref:type name) name]
 
     ;; ----------------------------------------
@@ -192,6 +200,9 @@
 
     ;; ----------------------------------------
     ;; CLASS
+    [(ref:class name) name]
+    [(class:defn fields _)
+     `(ObjectClass ,@(map sexpr-of-class-field fields))]
 
     ;; ----------------------------------------
     ;; OBJECT
@@ -275,6 +286,24 @@
     [(? exact-nonnegative-integer? n) n]
     [(ast:named name num) num]))
 
+(define (sexpr-of-class-field f)
+  (match f
+    [(field:type ref opt)
+     `[#:type ,(id-of ref)]]
+    [(field:value/fixed-type ref type uniq opt)
+     `[#:value ,(id-of ref) ,(expr-of type)]]
+    [(field:value/var-type ref type opt)
+     `[#:value ,(id-of ref) #:dependent ,(expr-of type)]]
+    [(field:value-set/fixed-type ref type opt)
+     `[#:value-set ,(id-of ref) ,(expr-of type)]]
+    [(field:value-set/var-type ref type opt)
+     `[#:value-set ,(id-of ref) #:dependent ,(expr-of type)]]
+    [(field:object ref class opt)
+     `[#:object ,(id-of ref) ,(expr-of class)]]
+    [(field:object-set ref class opt)
+     `[#:object-set ,(id-of ref) ,(expr-of class)]]
+    ))
+
 (define (make-append xse yse)
   (match* [xse yse]
     [[`(list ,@xs) `(list ,@ys)]
@@ -282,6 +311,12 @@
     [[`(append ,@xsse) yse]
      `(append ,@xsse ,yse)]
     [[xse yse] `(append ,xse ,yse)]))
+
+(define (comments . cs)
+  (map (lambda (c) (unquoted-printing-string (format "#| ~a |#" c))) cs))
+
+(define (begin/comment c expr)
+  `(begin ,@(comments c) ,expr))
 
 ;; ============================================================
 
