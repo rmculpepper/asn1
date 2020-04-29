@@ -17,13 +17,14 @@
    ;; ----------------------------------------
    ;; bstring ::= ['] [01]* ['][B], maybe also whitespace (discarded)
    [(:seq #\' (:or #\0 #\1) #\' #\B)
-    (token-bstring lexeme)]
+    (token-bstring (substring lexeme 1 (- (string-length lexeme) 2)))]
    ;; cstring ::= ["](""|[^"])*["]
    [(:seq #\" (:* (:or (:seq #\" #\") (:~ #\"))) #\")
-    (token-cstring lexeme)]
+    (token-cstring
+     (regexp-replace* #rx"\"\"" (substring lexeme 1 (- (string-length lexeme) 1)) "\""))]
    ;; hstring ::= ['] [0-9A-F]* ['][H]
    [(:seq #\' (:* (:/ #\0 #\9 #\A #\F)) #\' #\H)
-    (token-hstring lexeme)]
+    (token-hstring (substring lexeme 1 (- (string-length lexeme) 2)))]
    ;; identifier ::= [a-z][-A-Z0-9]* -- but no double-dash, last char must not be dash
    ;;     ::= [a-z] ([-]?[a-zA-Z0-9])*
    [(:seq (:/ #\a #\z) (:* (:? #\-) (:/ #\a #\z #\A #\Z #\0 #\9)))

@@ -171,14 +171,9 @@
     ;; ----------------------------------------
     ;; VALUE
     [(ref:value name) name]
-    [(? exact-nonnegative-integer? n) n]
-    ['NULL 'NULL] ;; Ambiguous type vs value! NULL type probably more common. (FIXME?)
-    ['TRUE #t]
-    ['FALSE #f]
-    [(value:bstring s) `(FIXME '(bstring ,s))] ;; FIXME: octet string or bitstring?
-    [(value:hstring s) `(FIXME '(hstring ,s))] ;; FIXME: as octet string or bitstring?
-    [(? string? s) s]
-    ;; ----
+    [(value v) v]
+    [(value:bstring s) `(FIXME '(bstring ,s))]
+    [(value:hstring s) `(FIXME '(hstring ,s))]
     [(value:annotated type value)
      (expr-of value #:type type)]
     [(value:bit-list bits) `(FIXME '(bits (list ,@bits)))]

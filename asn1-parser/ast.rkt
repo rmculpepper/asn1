@@ -82,12 +82,9 @@
 ;; Values
 
 ;; BuiltinValue =
-;; | 'NULL
-;; | Boolean
-;; | Integer
+;; | (value (U 'NULL Boolean Integer String))
 ;; | (value:bstring String) -- [01]*
 ;; | (value:hstring String) -- [0-9A-F]*
-;; | String
 ;; | (value:annotated Type Value)
 ;; | (value:bit-list (Listof Identifier))
 ;; | (value:choice Ident Value)
@@ -292,6 +289,7 @@
 
 ;; Values
 
+(struct value (v) #:prefab)
 (struct value:bstring (s) #:prefab)
 (struct value:hstring (s) #:prefab)
 (struct value:bit-list (bits) #:prefab)

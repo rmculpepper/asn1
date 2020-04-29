@@ -402,13 +402,13 @@
 ;; VALUES:
 
 (define-nt BuiltinValue
-  [(NULL) 'NULL]
-  [(TRUE) '#t]
-  [(FALSE) '#f]
-  [(num) $1]
+  [(NULL) (value 'NULL)]
+  [(TRUE) (value #t)]
+  [(FALSE) (value #f)]
+  [(num) (value $1)]
   [(bstring) (value:bstring $1)] ;; BIT STRING, OCTET STRING
   [(hstring) (value:hstring $1)] ;; BIT STRING, OCTET STRING
-  [(cstring) $1] ;; character string types
+  [(cstring) (value $1)] ;; character string types
   [(IdentifierList) (value:bit-list $1)] ;; --- bit string value
   [(Identifier COLON Value) (value:choice $1 $3)]
   [(LBRACE Value* RBRACE) (value:seq/set-of $2)]
