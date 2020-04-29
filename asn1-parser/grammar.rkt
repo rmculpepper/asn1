@@ -1024,27 +1024,3 @@
                         (case (token-name (position-token-token next))
                           #;[(word) (eprintf "next = ~e\n" next)])
                         next))))))))
-
-#;
-(module+ main-inc
-  (define asn1-header-parser
-    (parser #:start ModuleHeader
-            #:end
-            #:src-pos
-            #:error (lambda args (error 'asn1-header-parser "failed: ~e" args))))
-  (require parser-tools/lex)
-  (for ([file (current-command-line-arguments)])
-    (call-with-input-file* file
-      (lambda (in)
-        (port-count-lines! in)
-        (define (read-token)
-          (define next (get-token in))
-          (case (token-name (position-token-token next))
-            [else (void)])
-          next)
-        (printf "~v\n" (asn1-header-parser read-token))
-        (let loop ()
-          (define m (asn1-member-parser read-token))
-          (unless (eof-object? m)
-            (printf "~v\n" m)
-            (loop)))))))

@@ -60,12 +60,12 @@
 ;; | (type:integer NamedValues)
 ;; | (type:sequence Components)
 ;; | (type:set Components)
-;; | (type:set-of Type SizeConstraint)
 ;; | (type:sequence-of Type SizeConstraint)
-;; | ObjectClassFieldType
+;; | (type:set-of Type SizeConstraint)
 ;; | (type:string Symbol) ;; FIXME: Character-String ?
 ;; | (type:tagged Tag (U 'implicit 'explicit #f) Type)
 ;; | (type:any-defined-by Ident)
+;; | ObjectClassFieldType
 
 ;; NamedValues = (Listof (ast:named Symbol Value))
 ;; Tag = (tag TagClass (U Integer DefinedValue))
@@ -88,12 +88,12 @@
 ;; | (value:bstring String) -- [01]*
 ;; | (value:hstring String) -- [0-9A-F]*
 ;; | String
+;; | (value:annotated Type Value)
 ;; | (value:bit-list (Listof Identifier))
 ;; | (value:choice Ident Value)
+;; | (value:oid/reloid (U Integer (ast:named Ident Integer) DefinedValue))
 ;; | (value:seq/set-of (Listof Value))
 ;; | (value:seq/set (Listof (ast:named Ident Value)))
-;; | (value:oid/reloid (U Integer (ast:named Ident Integer) DefinedValue))
-;; | (value:annotated Type Value)
 
 ;; ------------------------------------------------------------
 ;; 13 Subtype constraints
@@ -349,10 +349,6 @@
 (struct field:value-set/var-type (ref type opt) #:prefab)
 (struct field:object (ref class opt) #:prefab)
 (struct field:object-set (ref class opt) #:prefab)
-
-
-
-
 
 ;; ----------------------------------------
 (define fixme vector)
