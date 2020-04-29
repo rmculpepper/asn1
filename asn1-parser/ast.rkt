@@ -300,8 +300,6 @@
 (struct value:from-object (object field) #:prefab)
 (struct value:annotated (type value) #:prefab)
 
-(struct named-value (name value) #:prefab)
-
 (struct value-set:defn (values) #:prefab)
 (struct value-set:from-object (object field) #:prefab)
 

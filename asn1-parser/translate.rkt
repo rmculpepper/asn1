@@ -13,6 +13,133 @@
 ;; - fix OID parsed as seq/set value, eg { id-pkix 1 } (or vice versa?)
 
 ;; ============================================================
+;; Fixup
+
+#;
+(define (fixup v)
+
+  (define (for-thing x)
+    (match x
+
+      ;; ----------------------------------------
+      ;; Module
+
+      [(mod:defn id tagmode extmode exports imports assignments) _]
+      [(mod:id name oid) _]
+      [(mod:import syms modid) _]
+
+      ;; ----------------------------------------
+      ;; Assignment
+      [(assign:type name params type) _]
+      [(assign:value name params type value) _]
+      [(assign:value-set name params type value-set) _]
+      [(assign:class name params class) _]
+      [(assign:object name params class object) _]
+      [(assign:object-set name params class object-set) _]
+
+      ;; ----------------------------------------
+      ;; TYPE
+      [(ref:type name) _]
+      [(type name) _]
+      [(type:bit-string _) _]
+      [(type:choice alts) _]
+      [(type:enum _)  _]
+      [(type:integer _) _]
+      [(type:sequence fields) _]
+      [(type:set fields) _]
+      [(type:sequence-of type size-c) _]
+      [(type:set-of type size-c) _]
+      [(type:string subtype) _]
+      [(type:tagged (tag tagclass tagnum) mode type) _]
+      ;; ----
+      [(type:constrained (type:from-class class fields) (constraint:table objset ats)) _]
+      [(type:constrained type constraint) _]
+      [(type:any-defined-by id) _]
+      [(type:from-object object field) _]
+      [(type:from-class class field) _]
+      [(type:instance-of oid) _]
+      [(type:select id type) _]
+
+      ;; ----------------------------------------
+      ;; VALUE
+      [(ref:value name) _]
+      [(value v) _]
+      [(value:bstring s) _]
+      [(value:hstring s) _]
+      [(value:annotated type value) _]
+      [(value:bit-list bits) _]
+      [(value:choice name value) _]
+      [(value:oid/reloid cs) _]
+      [(value:seq/set-of values) _]
+      [(value:seq/set values) _]
+      [(value:from-object object field) _]
+
+      ;; ----------------------------------------
+      ;; VALUE SET
+      [(value-set:defn vs) _]
+      [(value-set:from-object object field) _]
+
+      ;; ----------------------------------------
+      ;; CLASS
+      [(ref:class name) _]
+      [(class:defn fields _) _]
+      [(class:type-identifier) _]
+
+      ;; ----------------------------------------
+      ;; OBJECT
+      [(ref:object name) _]
+      [(object:defn decls) _]
+      [(object:sugar sugar) _]
+      [(object:from-object object field) _]
+
+      ;; ----------------------------------------
+      ;; OBJECT SET
+      [(ref:object-set name) _]
+      [(object-set:defn objs) _]
+      [(object-set:from-object object field) _]
+
+      ;; ----------------------------------------
+      ;; CLASS FIELD
+      [(field:type ref opt) _]
+      [(field:value/fixed-type ref type uniq opt) _]
+      [(field:value/var-type ref type opt) _]
+      [(field:value-set/fixed-type ref type opt) _]
+      [(field:value-set/var-type ref type opt) _]
+      [(field:object ref class opt) _]
+      [(field:object-set ref class opt) _]
+
+      ;; ----------------------------------------
+      ;; CONSTRAINT
+      [(constraint:single-value value) _]
+      [(constraint:includes type) _]
+      [(constraint:value-range lo hi) _]
+      [(constraint:size c) _]
+      [(constraint:pattern v) _]
+      [(constraint:inner-type (? list? tcs)) _]
+      [(constraint:inner-type c) _]
+      [(constraint:component vc pc) _]
+      [(constraint:containing type) _]
+      [(constraint:containing/encoded-by type value) _]
+      [(constraint:or c1 c2) _]
+      [(constraint:and c1 c2) _]
+      [(constraint:user) _]
+      [(constraint:table objset ats) _]
+
+      ;; ----------------------------------------
+      ;; GENERIC
+      [(ref:dot modref ref) _]
+      [(expr:apply thing args) _]
+      [(ast:named name thing) _]
+      [(param governor ref) _]
+      [(opt:optional thing) _]
+      [(opt:default thing default) _]
+
+      ;; ----------------------------------------
+      ))
+
+  (void))
+
+;; ============================================================
 ;; Desugaring
 
 (define (desugar-object sugar classref)
