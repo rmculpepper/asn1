@@ -107,21 +107,15 @@
 
 (define-nt Type
   [(BuiltinType) $1]
-  [(ReferencedType) $1]
-  [(ConstrainedType) $1])
-
-(define-nt ReferencedType
   [(DefinedType) $1]
   [(UsefulType) $1]
   [(SelectionType) $1]
   [(TypeFromObject) $1]
-  [(ValueSetFromObjects) $1])
+  [(ValueSetFromObjects) $1]
+  [(ConstrainedType) $1])
 
 (define-nt Value
   [(BuiltinValue) $1]
-  [(ReferencedValue) $1])
-
-(define-nt ReferencedValue
   [(DefinedValue) $1]
   [(ValueFromObject) $1])
 
@@ -836,8 +830,7 @@
 ;;   [(Type COLON Value) (value:annotated $1 $3)]
 ;;   [(FixedTypeFieldVal) $1])
 ;; (define-nt FixedTypeFieldVal
-;;   [(BuiltinValue) $1]
-;;   [(ReferencedValue) $1])
+;;   [(Value) $1])
 
 (define-nt GeneralConstraint
   [(UserDefinedConstraint) $1]
