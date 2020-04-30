@@ -15,19 +15,19 @@
 
 (define-nt Identifier [(id) $1])
 
-(define-nt ValueReference [(id) (ref:id $1)])
-(define-nt ModuleReference [(Word/WORD) (ref:Word $1)])
-(define-nt TypeReference [(Word/WORD) (ref:Word $1)])
+(define-nt ValueReference [(id) $1])
+(define-nt ModuleReference [(Word/WORD) $1])
+(define-nt TypeReference [(Word/WORD) $1])
 
-(define-nt ObjectClassReference [(WORD) (ref:Word $1)])
-(define-nt ObjectReference [(id) (ref:id $1)])
-(define-nt ObjectSetReference [(Word/WORD) (ref:Word $1)])
+(define-nt ObjectClassReference [(WORD) $1])
+(define-nt ObjectReference [(id) $1])
+(define-nt ObjectSetReference [(Word/WORD) $1])
 
-(define-nt TypeFieldReference [(amp-Word/WORD) (ref:&Word $1)])
-(define-nt ValueFieldReference [(amp-id) (ref:&id $1)])
-(define-nt ValueSetFieldReference [(amp-Word/WORD) (ref:&Word $1)])
-(define-nt ObjectFieldReference [(amp-id) (ref:&id $1)])
-(define-nt ObjectSetFieldReference [(amp-Word/WORD) (ref:&Word $1)])
+(define-nt TypeFieldReference [(amp-Word/WORD) $1])
+(define-nt ValueFieldReference [(amp-id) $1])
+(define-nt ValueSetFieldReference [(amp-Word/WORD) $1])
+(define-nt ObjectFieldReference [(amp-id) $1])
+(define-nt ObjectSetFieldReference [(amp-Word/WORD) $1])
 
 (define-nt ReservedWORD
   ;; Don't allow type names and value names as syntax literals
@@ -403,10 +403,11 @@
   [(bstring) (value:bstring $1)] ;; BIT STRING, OCTET STRING
   [(hstring) (value:hstring $1)] ;; BIT STRING, OCTET STRING
   [(cstring) (value $1)] ;; character string types
-  [(IdentifierList) (value:bit-list $1)] ;; --- bit string value
   [(Identifier COLON Value) (value:choice $1 $3)]
+  ;; [(LBRACE Identifier* RBRACE) (value:bit-list $2)] ;; BIT STRING; overlaps SE[QT]-OF
   [(LBRACE Value* RBRACE) (value:seq/set-of $2)]
   [(LBRACE NamedValue* RBRACE) (value:seq/set $2)]
+  [(LBRACE GenOIDComponents+ RBRACE) (value:oid/reloid $2)] ;; = ObjectIdentifierValue
   ;; ----------------------------------------
   [(ObjectIdentifierValue) $1]
   #;[(EmbeddedPDVValue) $1]
@@ -419,11 +420,7 @@
 ;; ----------------------------------------
 ;; 10 Basic types
 
-(define-nt IdentifierList
-  [(LBRACE RBRACE) null]
-  [(LBRACE Identifier+ RBRACE) $2])
-
-(define-nt+ Identifier+ Identifier #:sep [COMMA])
+(define-nt*+ Identifier* Identifier+ Identifier #:sep [COMMA])
 
 (define-nt ObjectIdentifierValue
   [(LBRACE GenOIDComponents+ RBRACE) (value:oid/reloid $2)])

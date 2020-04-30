@@ -3,20 +3,26 @@
          racket/list
          "ast.rkt")
 
-;; Need pre-passes
+;; Pre-pass
+;; - track type/class of context
 ;; - desugar information objects
 ;; - mark dependent SET/SEQUENCE fields
 ;; - resolve tagging mode to implicit/explicit
-;; - topological sort definitions by dependence?
 ;; - disambiguate NULL type vs NULL value (eg in object)
-
 ;; - fix OID parsed as seq/set value, eg { id-pkix 1 } (or vice versa?)
 
-;; ============================================================
-;; Fixup
+;; Other ideas
+;; - topological sort definitions by dependence?
+
+;; Ambiguities
+;; - NULL = value or type?
+;; - { id num } = OID/RelOID (2 parts) or SEQ/SET (1 name+value)
+;; - { id { value } } = SEQ/SET-OF{ call id on value } or SEQ/SET{ id := { value } SET/SEQ-OF }
+;; - Word ::= Word = type assignment or class assignment?
+
 
 #;
-(define (fixup v)
+(define (template v)
 
   (define (for-thing x)
     (match x
@@ -158,20 +164,13 @@
        (or (loop sugar (append group pattern) acc)
            (loop sugar pattern acc))]
       [[(cons value sugar) (cons (? field-ref? ref) pattern)]
-       (loop sugar pattern (cons (ast:named (id-of ref) value) acc))]
+       (loop sugar pattern (cons (ast:named ref value) acc))]
       [['() '()]
        (reverse acc)]
       [[_ _] #f])))
 
 (define (field-ref? x)
-  (or (ref:&id? x)
-      (ref:&Word? x)
-      #;(or (ref:type-field? x)
-            (ref:value-field? x)
-            (ref:value-set-field? x)
-            (ref:object-field? x)
-            (ref:object-set-field? x))))
-
+  (or (&id? x) (&word? x)))
 
 ;; ============================================================
 ;; Translation
@@ -205,8 +204,8 @@
 
 (define (decl-of-assignment a)
   (define (header-of name params)
-    (cond [(null? params) (id-of name)]
-          [else (cons (id-of name) (map formal-of params))]))
+    (cond [(null? params) name]
+          [else (cons name (map formal-of params))]))
   (define (do-begin a bs) (if (null? bs) a `(begin ,a ,@bs)))
   (match a
     [(assign:type name params type)
@@ -232,27 +231,8 @@
         ,@(comments (format "~s" (expr-of class)))
         ,(expr-of object-set #:class class))]))
 
-(define (id-of ref)
-  (match ref
-    [(ref:id name) name]
-    [(ref:Word name) name]
-    [(ref:&id name) name]
-    [(ref:&Word name) name]
-    ;; [(ref:value name) name]
-    ;; [(ref:type name) name]
-    ;; [(ref:module name) name]
-    ;; [(ref:class name) name]
-    ;; [(ref:object name) name]
-    ;; [(ref:object-set name) name]
-    ;; [(ref:type-field name) name]
-    ;; [(ref:value-field name) name]
-    ;; [(ref:value-set-field name) name]
-    ;; [(ref:object-field name) name]
-    ;; [(ref:object-set-field name) name]
-    ))
-
 (define (formal-of p)
-  (match p [(param gov ref) (id-of ref)]))
+  (match p [(param gov ref) ref]))
 
 (define (expr-of x #:class [class #f])
   (match x
@@ -290,7 +270,7 @@
              ,(expr-of type)))]
     ;; ----
     [(type:constrained (type:from-class class fields) (constraint:table objset ats))
-     `(object-set-ref ,(expr-of class) ,(expr-of objset) (quote ,(map id-of fields))
+     `(object-set-ref ,(expr-of class) ,(expr-of objset) (quote ,fields)
                       ,@(if (pair? ats) (comments "(with @-constraints)") null))]
     [(type:constrained type constraint)
      (begin/fixme `(Constraint ,(expr-of constraint)) (expr-of type))]
@@ -298,7 +278,7 @@
      `(begin ANY ,@(comments (format "DEFINED BY ~s" id)))]
     [(type:from-object object field) (do-field-ref object field)]
     [(type:from-class class field)
-     `(class-ref ,(expr-of class) ',(map id-of field))]
+     `(class-ref ,(expr-of class) ',field)]
     [(type:instance-of oid) `(FIXME '(instance-of ,(expr-of oid)))]
     [(type:select id type) `(FIXME '(select ,id ,(expr-of type)))]
 
@@ -308,17 +288,16 @@
     [(value v) v]
     [(value:bstring s) `(FIXME '(bstring ,s))]
     [(value:hstring s) `(FIXME '(hstring ,s))]
-    [(value:annotated type value)
-     (expr-of value #:type type)]
+    [(value:annotated type value) (expr-of value)]
     [(value:bit-list bits) `(FIXME '(bits (list ,@bits)))]
     [(value:choice name value)
      `(list (quote ,name) ,(expr-of value))]
     [(value:oid/reloid cs)
      (define (const-oid? cs) (andmap const-oid-component? cs))
      (match cs
-       [(cons (ref:value base-oid) (? const-oid? cs))
+       [(cons (? id? base-oid) (? const-oid? cs))
         `(build-OID base-oid ,@(map sexpr-of-oid-component cs))]
-       [(cons (ref:value base-oid) cs)
+       [(cons (? id? base-oid) cs)
         `(append base-oid (list ,@(map expr-of-oid-component cs)))]
        [(? const-oid? cs)
         `(OID ,@(map sexpr-of-oid-component cs))]
@@ -342,7 +321,8 @@
           (make-append (loop vs1) (loop vs2))]
          [(constraint:single-value v)
           `(list ,(expr-of v #:kind type))]
-         [(ref:id name) name]
+         [(? id? name) `(list ,name)]
+         [(? word? name) name]
          [_ `(FIXME '(Value-Set ,vs))]))]
     [(value-set:from-object object field) (do-field-ref object field)]
 
@@ -379,8 +359,8 @@
           (make-append (loop objs1) (loop objs2))]
          [(constraint:single-value obj)
           `(list ,(expr-of obj #:class class))]
-         [(ref:Word name) name]
-         [(ref:id name) `(list ,name)]
+         [(? word? name) name]
+         [(? id? name) `(list ,name)]
          [(? object:defn? obj) `(list ,(expr-of obj #:class class))]
          [(? object:sugar? obj) `(list ,(expr-of obj #:class class))]
          [_ `(FIXME '(Objects ,objs))]))]
@@ -412,10 +392,11 @@
 
     ;; ----------------------------------------
     ;; GENERIC
-    [(ref:id name) name]
-    [(ref:Word name) name]
+    [(? id? s) s]
+    [(? word? s) s]
+    [(? exact-integer? n) n]
     [(ref:dot modref ref)
-     (string->symbol (format "~s.~s" (id-of modref) (id-of ref)))]
+     (string->symbol (format "~s.~s" modref ref))]
     [(expr:apply thing args)
      `(,(expr-of thing) ,@(map expr-of args))]
 
@@ -462,7 +443,7 @@
 
 (define (expr-of-oid-component c)
   (match c
-    [(ref:id name) name]
+    [(? id? name) name]
     [(? exact-nonnegative-integer? n) n]
     [(ast:named name num) num]))
 
@@ -474,19 +455,19 @@
       [#f '[]]))
   (match f
     [(field:type ref opt)
-     `[#:type ,(id-of ref) ,@(opt-of opt)]]
+     `[#:type ,ref ,@(opt-of opt)]]
     [(field:value/fixed-type ref type uniq opt)
-     `[#:value ,(id-of ref) ,(expr-of type) ,@(if uniq '(#:unique) '()) ,@(opt-of opt)]]
+     `[#:value ,ref ,(expr-of type) ,@(if uniq '(#:unique) '()) ,@(opt-of opt)]]
     [(field:value/var-type ref type opt)
-     `[#:value ,(id-of ref) #:dependent ,(expr-of type) ,@(opt-of opt)]]
+     `[#:value ,ref #:dependent ,(expr-of type) ,@(opt-of opt)]]
     [(field:value-set/fixed-type ref type opt)
-     `[#:value-set ,(id-of ref) ,(expr-of type) ,@(opt-of opt)]]
+     `[#:value-set ,ref ,(expr-of type) ,@(opt-of opt)]]
     [(field:value-set/var-type ref type opt)
-     `[#:value-set ,(id-of ref) #:dependent ,(expr-of type) ,@(opt-of opt)]]
+     `[#:value-set ,ref #:dependent ,(expr-of type) ,@(opt-of opt)]]
     [(field:object ref class opt)
-     `[#:object ,(id-of ref) ,(expr-of class) ,@(opt-of opt)]]
+     `[#:object ,ref ,(expr-of class) ,@(opt-of opt)]]
     [(field:object-set ref class opt)
-     `[#:object-set ,(id-of ref) ,(expr-of class) ,@(opt-of opt)]]
+     `[#:object-set ,ref ,(expr-of class) ,@(opt-of opt)]]
     ))
 
 (define (make-append xse yse)

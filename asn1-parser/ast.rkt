@@ -216,6 +216,25 @@
 
 ;; ActualParameter = Type | Value | ValueSet | DefinedObjectClass | Object | ObjectSet
 
+;; ============================================================
+
+(define symbol-class-h (make-weak-hasheq))
+
+(define (symbol-classify sym)
+  (unless (hash-has-key? symbol-class-h sym)
+    (hash-set! symbol-class-h sym
+               (let ([s (symbol->string sym)])
+                 (cond [(regexp-match? #rx"^[a-z]" s) 'id]
+                       [(regexp-match? #rx"^[A-Z]" s) 'word]
+                       [(regexp-match? #rx"^[&][a-z]" s) '&id]
+                       [(regexp-match? #rx"^[&][A-Z]" s) '&word]
+                       [else #| error |# #f]))))
+  (hash-ref symbol-class-h sym))
+
+(define (id? s)    (and (symbol? s) (eq? (symbol-classify s) 'id)))
+(define (word? s)  (and (symbol? s) (eq? (symbol-classify s) 'word)))
+(define (&id? s)   (and (symbol? s) (eq? (symbol-classify s) '&id)))
+(define (&word? s) (and (symbol? s) (eq? (symbol-classify s) '&word)))
 
 ;; ============================================================
 ;; Structures
@@ -242,14 +261,14 @@
 
 ;; References
 
-(struct ref:id (name) #:prefab)
-(struct ref:Word (name) #:prefab)
-(struct ref:&id (name) #:prefab)
-(struct ref:&Word (name) #:prefab)
-
 (struct ref:dot (modref ref) #:prefab)
 
 (begin
+  (struct ref:id (name) #:prefab)
+  (struct ref:Word (name) #:prefab)
+  (struct ref:&id (name) #:prefab)
+  (struct ref:&Word (name) #:prefab)
+
   (struct ref:module ref:Word () #:prefab)
 
   (struct ref:type ref:Word () #:prefab)
