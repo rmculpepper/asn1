@@ -8,26 +8,28 @@
 
 (use-tokens! asn1-tokens)
 
-(define-nt Word/WORD [(Word) $1] [(WORD) $1])
-(define-nt amp-Word/WORD [(amp-Word) $1] [(amp-WORD) $1])
-
 (define-nt Number [(num) $1])
 
 (define-nt Identifier [(id) $1])
+(define-nt &Identifier [(amp-id) $1])
 
-(define-nt ValueReference [(id) $1])
-(define-nt ModuleReference [(Word/WORD) $1])
-(define-nt TypeReference [(Word/WORD) $1])
+(define-nt Word [(word) $1] [(word-caps) $1])
+(define-nt &Word [(amp-word) $1] [(amp-word-caps) $1])
 
-(define-nt ObjectClassReference [(WORD) $1])
-(define-nt ObjectReference [(id) $1])
-(define-nt ObjectSetReference [(Word/WORD) $1])
+(define-nt Reference [(Identifier) $1] [(Word) $1])
+(define-nt FieldReference [(&Identifier) $1] [(&Word) $1])
 
-(define-nt TypeFieldReference [(amp-Word/WORD) $1])
-(define-nt ValueFieldReference [(amp-id) $1])
-(define-nt ValueSetFieldReference [(amp-Word/WORD) $1])
-(define-nt ObjectFieldReference [(amp-id) $1])
-(define-nt ObjectSetFieldReference [(amp-Word/WORD) $1])
+(define-nt ValueReference [(Identifier) $1])
+(define-nt ModuleReference [(Word) $1])
+(define-nt TypeReference [(Word) $1])
+(define-nt ObjectClassReference [(Word) $1])
+(define-nt ObjectReference [(Identifier) $1])
+(define-nt ObjectSetReference [(Word) $1])
+(define-nt TypeFieldReference [(&Word) $1])
+(define-nt ValueFieldReference [(&Identifier) $1])
+(define-nt ValueSetFieldReference [(&Word) $1])
+(define-nt ObjectFieldReference [(&Identifier) $1])
+(define-nt ObjectSetFieldReference [(&Word) $1])
 
 (define-nt ReservedWORD
   ;; Don't allow type names and value names as syntax literals
@@ -84,40 +86,8 @@
 ;; no extension alternative (only extensibility marker)
 ;; - delete SET, SEQUENCE, CHOICE ExtensionAdditionAlternatives
 
-
 ;; ============================================================
-;; 9.1 Assignments (p 106, pdf 134)
-
-(define-nt* AssignmentList Assignment #:post [])
-
-(define-nt Assignment
-  [(TypeReference ASSIGN Type)
-   (assign:type $1 null $3)]
-  [(ValueReference Type ASSIGN Value)
-   (assign:value $1 null $2 $4)]
-  [(TypeReference Type ASSIGN ValueSet)
-   (assign:value-set $1 null $2 $4)]
-  [(ObjectClassReference ASSIGN ObjectClass)
-   (assign:class $1 null $3)]
-  [(ObjectReference DefinedObjectClass ASSIGN Object)
-   (assign:object $1 null $2 $4)]
-  [(ObjectSetReference DefinedObjectClass ASSIGN ObjectSet)
-   (assign:object-set $1 null $2 $4)]
-  [(ParameterizedAssignment) $1])
-
-(define-nt Type
-  [(BuiltinType) $1]
-  [(DefinedType) $1]
-  [(UsefulType) $1]
-  [(SelectionType) $1]
-  [(TypeFromObject) $1]
-  [(ValueSetFromObjects) $1]
-  [(ConstrainedType) $1])
-
-(define-nt Value
-  [(BuiltinValue) $1]
-  [(DefinedValue) $1]
-  [(ValueFromObject) $1])
+;; Merged grammar
 
 ;; ============================================================
 ;; 9.2 Module Structure (pdf 141)
@@ -188,38 +158,162 @@
 
 (define-nt Symbol
   [(Reference) $1]
-  [(ParameterizedReference) $1])
-
-(define-nt Reference
-  [(TypeReference) $1]
-  [(ValueReference) $1]
-  [(ObjectClassReference) $1]
-  [(ObjectReference) $1]
-  [(ObjectSetReference) $1])
-
-(define-nt ParameterizedReference
-  #;[(Reference) $1] ;; redundant
   [(Reference LBRACE RBRACE) $1])
+
+;; ----------------------------------------
+;; merged
+
+(define-nt SimpleDefinedId
+  [(Identifier) $1])
+(define-nt DefinedIdOrApp
+  [(SimpleDefinedId) $1]
+  [(SimpleDefinedId ActualParameterList) (expr:apply $1 $2)])
+
+(define-nt SimpleDefinedWord
+  [(Word) $1])
+(define-nt DefinedWordOrApp
+  [(SimpleDefinedWord) $1]
+  [(SimpleDefinedWord ActualParameterList) (expr:apply $1 $2)])
+
+(define-nt SimpleDefinedRef
+  [(SimpleDefinedId) $1] [(SimpleDefinedWord) $1])
+(define-nt DefinedRefOrApp
+  [(DefinedIdOrApp) $1] [(DefinedWordOrApp) $1])
+
+(define-nt DefinedValue
+  [(DefinedIdOrApp) $1])
+(define-nt DefinedObject
+  [(DefinedIdOrApp) $1])
+(define-nt DefinedObjectSet
+  [(DefinedWordOrApp) $1])
+
+;; ============================================================
+;; 9.1 Assignments (p 106, pdf 134)
+
+(define-nt* AssignmentList Assignment #:post [])
+
+(define-nt Assignment
+  [(Word ASSIGN Type+ObjectClass)
+   ;; TypeReference ASSIGN Type
+   ;; ObjectClassReference ASSIGN ObjectClass
+   (assign:word $1 null $3)]
+  [(Identifier Type+DefinedObjectClass ASSIGN Value+Object)
+   ;; ValueReference Type ASSIGN Value
+   ;; ObjectReference DefinedObjectClass ASSIGN Object
+   (assign:id $1 null $2 $4)]
+  [(Word Type+DefinedObjectClass ASSIGN ValueSet+ObjectSet)
+   ;; TypeReference Type ASSIGN ValueSet
+   ;; ObjectSetReference DefinedObjectClass ASSIGN ObjectSet
+   (assign:object-set $1 null $2 $4)]
+  ;; --- Parameterized assignments ---
+  [(Word ParameterList ASSIGN Type+ObjectClass)
+   ;; TypeReference ParameterList ASSIGN Type
+   ;; ObjectClassReference ParameterList ASSIGN ObjectClass
+   (assign:word $1 $2 $4)]
+  [(Identifier ParameterList Type+DefinedObjectClass ASSIGN Value+Object)
+   ;; ValueReference ParameterList Type ASSIGN Value
+   ;; ObjectReference ParameterList DefinedObjectClass ASSIGN Object
+   (assign:id $1 $2 $3 $5)]
+  [(Word ParameterList Type+DefinedObjectClass ASSIGN ValueSet+ObjectSet)
+   ;; TypeReference ParameterList Type ASSIGN ValueSet
+   ;; ObjectSetReference ParameterList DefinedObjectClass ASSIGN ObjectSet
+   (assign:object-set $1 $2 $3 $5)])
+
+Type+ObjectClass
+Type+DefinedObjectClass
+Value+Object
+ValueSet+ObjectSet
+
+(define-nt Type
+  ;; ----------------------------------------
+  [(ANY) (type 'ANY)]
+  [(ANY DEFINED BY Identifier) (type:any-defined-by $4)]
+  [(BIT STRING LBRACE NamedBit+ RBRACE) (type:bit-string $4)]
+  [(BIT STRING) (type:bit-string null)]
+  [(BOOLEAN) (type 'BOOLEAN)]
+  [(CHARACTER STRING) (type 'CHARACTER-STRING)]
+  [(CHOICE LBRACE AlternativeTypeLists RBRACE) (type:choice $3)]
+  [(EMBEDDED PDV) (type 'EMBEDDED-PDV)]
+  [(ENUMERATED LBRACE Enumerations RBRACE) (type:enum $3)]
+  [(EXTERNAL) (type 'EXTERNAL)]
+  [(INSTANCE OF DefinedObjectClass) (type:instance-of $3)]
+  [(INTEGER LBRACE NamedNumber+ RBRACE) (type:integer $3)]
+  [(INTEGER) (type:integer null)]
+  [(NULL) (type 'NULL)]
+  [(OBJECT IDENTIFIER) (type 'OBJECT-IDENTIFIER)]
+  [(OCTET STRING) (type 'OCTET-STRING)]
+  [(REAL) (type 'REAL)]
+  [(RELATIVE-OID) (type 'RELATIVE-OID)]
+  [(SEQUENCE LBRACE ComponentTypeLists RBRACE) (type:sequence $3)]
+  [(SEQUENCE OF Type) (type:sequence-of $3 #f)]
+  [(SEQUENCE SizeConstraint OF Type) (type:sequence-of $4 $2)] ;; from TypeWithConstraint
+  [(SET LBRACE ComponentTypeLists RBRACE) (type:set $3)]
+  [(SET OF Type) (type:set-of $3 #f)]
+  [(SET SizeConstraint OF Type) (type:set-of $4 $2)] ;; from TypeWithConstraint
+  ;; ----------------------------------------
+  ;; CharacterStringType
+  ;; FIXME: un-reserve these names, just parse them as TypeReferences ?
+  [(BMPString)          (type:string 'BMPString)]
+  [(GeneralString)      (type:string 'GeneralString)]
+  [(GraphicString)      (type:string 'GraphicString)]
+  [(IA5String)          (type:string 'IA5String)]
+  [(ISO646String)       (type:string 'ISO656String)]
+  [(NumericString)      (type:string 'NumericString)]
+  [(PrintableString)    (type:string 'PrintableString)]
+  [(TeletexString)      (type:string 'TeletexString)]
+  [(T61String)          (type:string 'T61String)]
+  [(UniversalString)    (type:string 'UniversalString)]
+  [(UTF8String)         (type:string 'UTF8String)]
+  [(VideotexString)     (type:string 'VideotexString)]
+  [(VisibleString)      (type:string 'VisibleString)]
+  ;; ----------------------------------------
+  ;; UsefulType
+  [(GeneralizedTime)    (type 'GeneralizedTime)]
+  [(UTCTime)            (type 'UTCTime)]
+  [(ObjectDescriptor)   (type 'ObjectDescriptor)]
+
+  ;; ----------------------------------------
+  ;; DefinedType
+  [(DefinedWordOrApp) $1]
+  ;; ----------------------------------------
+  ;; ConstrainedType
+  [(Type Constraint) (type:constrained $1 $2)]
+  ;; TypeWithConstraint
+  #;[(SEQUENCE Constraint OF Type) ...]
+  #;[(SET Constraint OF Type) ...]
+  ;; ----------------------------------------
+  ;; TaggedType
+  [(Tag Type)           (type:tagged $1 #f        $2)]
+  [(Tag IMPLICIT Type)  (type:tagged $1 'implicit $3)]
+  [(Tag EXPLICIT Type)  (type:tagged $1 'explicit $3)]
+  ;; ----------------------------------------
+  [(Identifier LESSTHAN Type) (type:select $1 $3)] ;; SelectionType
+  ;; ----------------------------------------
+  ;; {Type,ValueSet}FromObject, ObjectClassFieldType (merged)
+  [(DefinedRefOrApp DOT wordFieldName) (type:from-object $1 $3)]
+  )
+
+
+
+
+(define-nt Value
+  [(BuiltinValue) $1]
+  [(DefinedValue) $1]
+  [(ValueFromObject) $1])
+
+(define-nt ObjectClass
+  [(DefinedObjectClass) $1]
+  [(CLASS LBRACE FieldSpec+ RBRACE WithSyntaxSpec) (class:defn $3 $5)]
+  [(DefinedObjectClass ActualParameterList)
+   (expr:apply $1 $2)])
+
+
+
+;; XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+;; XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 ;; ============================================================
 ;; 9.3 Local and external references (pdf 146)
-
-(define-nt DefinedType
-  [(ExternalTypeReference) $1]
-  [(TypeReference) $1]
-  [(ParameterizedType) $1]
-  #;[(ParameterizedValueSetType) $1])
-
-(define-nt ExternalTypeReference
-  [(ModuleReference DOT TypeReference) (ref:dot $1 $3)])
-
-(define-nt DefinedValue
-  [(ExternalValueReference) $1]
-  [(ValueReference) $1]
-  [(ParameterizedValue) $1])
-
-(define-nt ExternalValueReference
-  [(ModuleReference DOT ValueReference) (ref:dot $1 $3)])
 
 (define-nt DefinedObjectClass
   [(ExternalObjectClassReference) $1]
@@ -229,50 +323,8 @@
 (define-nt ExternalObjectClassReference
   [(ModuleReference DOT ObjectClassReference) (ref:dot $1 $3)])
 
-(define-nt DefinedObject
-  [(ExternalObjectReference) $1]
-  [(ObjectReference) $1])
-
-(define-nt ExternalObjectReference
-  [(ModuleReference DOT ObjectReference) (ref:dot $1 $3)])
-
-(define-nt DefinedObjectSet
-  [(ExternalObjectSetReference) $1]
-  [(ObjectSetReference) $1])
-
-(define-nt ExternalObjectSetReference
-  [(ModuleReference DOT ObjectSetReference) (ref:dot $1 $3)])
-
 ;; ============================================================
 ;; TYPES:
-
-(define-nt BuiltinType
-  [(BIT STRING LBRACE NamedBit+ RBRACE) (type:bit-string $4)]
-  [(BIT STRING) (type:bit-string null)]
-  [(BOOLEAN) (type 'BOOLEAN)]
-  [(CHOICE LBRACE AlternativeTypeLists RBRACE) (type:choice $3)]
-  [(ENUMERATED LBRACE Enumerations RBRACE) (type:enum $3)]
-  [(INTEGER LBRACE NamedNumber+ RBRACE) (type:integer $3)]
-  [(INTEGER) (type:integer null)]
-  [(NULL) (type 'NULL)]
-  [(OBJECT IDENTIFIER) (type 'OBJECT-IDENTIFIER)]
-  [(OCTET STRING) (type 'OCTET-STRING)]
-  [(RELATIVE-OID) (type 'RELATIVE-OID)]
-  [(SEQUENCE LBRACE ComponentTypeLists RBRACE) (type:sequence $3)]
-  [(SEQUENCE OF Type) (type:sequence-of $3 #f)]
-  [(SET LBRACE ComponentTypeLists RBRACE) (type:set $3)]
-  [(SET OF Type) (type:set-of $3 #f)]
-  ;; ----
-  ;;[(EmbeddedPDVType) $1]
-  ;;[(ExternalType) $1]
-  [(ObjectClassFieldType) $1]
-  [(InstanceOfType) $1]
-  ;;[(RealType) $1]
-  [(CharacterStringType) $1]
-  [(TaggedType) $1]
-  ;; ----------------------------------------
-  [(ANY) (type 'ANY)]
-  [(ANY DEFINED BY Identifier) (type:any-defined-by $4)])
 
 ;; ----------------------------------------
 ;; 10 Basic types (pdf 155)
@@ -308,38 +360,8 @@
 ;; ----------------------------------------
 ;; 11 Character string types (pdf 199)
 
-;; FIXME: un-reserve these names, just parse them as TypeReferences ?
-
-(define-nt CharacterStringType
-  ;; RestrictedCharacterStringType
-  [(BMPString)          (type:string 'BMPString)]
-  [(GeneralString)      (type:string 'GeneralString)]
-  [(GraphicString)      (type:string 'GraphicString)]
-  [(IA5String)          (type:string 'IA5String)]
-  [(ISO646String)       (type:string 'ISO656String)]
-  [(NumericString)      (type:string 'NumericString)]
-  [(PrintableString)    (type:string 'PrintableString)]
-  [(TeletexString)      (type:string 'TeletexString)]
-  [(T61String)          (type:string 'T61String)]
-  [(UniversalString)    (type:string 'UniversalString)]
-  [(UTF8String)         (type:string 'UTF8String)]
-  [(VideotexString)     (type:string 'VideotexString)]
-  [(VisibleString)      (type:string 'VisibleString)]
-  ;; UnrestrictedCharacterStringType
-  [(CHARACTER STRING)   (type:string 'Character-String)])
-
-(define-nt UsefulType
-  [(GeneralizedTime)    (type 'GeneralizedTime)]
-  [(UTCTime)            (type 'UTCTime)]
-  [(ObjectDescriptor)   (type 'ObjectDescriptor)])
-
 ;; ----------------------------------------
 ;; 12 Constructed types, tagging, etc (pdf 233)
-
-(define-nt TaggedType
-  [(Tag Type)           (type:tagged $1 #f        $2)]
-  [(Tag IMPLICIT Type)  (type:tagged $1 'implicit $3)]
-  [(Tag EXPLICIT Type)  (type:tagged $1 'explicit $3)])
 
 ;; SEQUENCE, SET
 (begin
@@ -388,9 +410,6 @@
   (define-nt ClassNumber
     [(Number) $1]
     [(DefinedValue) $1]))
-
-(define-nt SelectionType
-  [(Identifier LESSTHAN Type) (type:select $1 $3)])
 
 ;; ============================================================
 ;; VALUES:
@@ -445,18 +464,6 @@
 
 ;; ============================================================
 ;; 13 Subtype constraints (pdf 285)
-
-(define-nt ConstrainedType
-  [(Type Constraint)    (type:constrained $1 $2)]
-  [(TypeWithConstraint) $1])
-
-(define-nt TypeWithConstraint
-  ;;[(SEQUENCE Constraint OF Type) ...]
-  ;;[(SET Constraint OF Type) ...]
-  [(SEQUENCE SizeConstraint OF Type)
-   (type:sequence-of $4 $2)]
-  [(SET SizeConstraint OF Type)
-   (type:set-of $4 $2)])
 
 (define-nt SingleValue
   [(Value) (constraint:single-value $1)])
@@ -604,13 +611,6 @@
 ;; ============================================================
 ;; 15 Info classes... (pdf 337)
 
-(define-nt ObjectClass
-  [(DefinedObjectClass) $1]
-  [(ObjectClassDefn) $1]
-  [(ParameterizedObjectClass) $1])
-
-(define-nt ObjectClassDefn
-  [(CLASS LBRACE FieldSpec+ RBRACE WithSyntaxSpec) (class:defn $3 $5)])
 
 (define-nt+ FieldSpec+ FieldSpec #:sep [COMMA])
 
@@ -673,27 +673,13 @@
     [(PrimitiveFieldName+) $1])
   (define-nt+ PrimitiveFieldName+ PrimitiveFieldName #:sep [DOT])
   (define-nt PrimitiveFieldName
-    [(TypeFieldReference) $1]
-    [(ValueFieldReference) $1]
-    [(ValueSetFieldReference) $1]
-    [(ObjectFieldReference) $1]
-    [(ObjectSetFieldReference) $1]))
+    [(FieldReference) $1]))
 
-(begin ;; BETTER, not quite precise
-  (define-nt* Object/Set-Field* Object/Set-Field #:post [DOT])
-  (define-nt Object/Set-Field
-    [(ObjectFieldReference) $1]
-    [(ObjectSetFieldReference) $1])
-  (define-nt Type-FieldName
-    [(Object/Set-Field* TypeFieldReference) (cons $1 $2)])
-  (define-nt Value-FieldName
-    [(Object/Set-Field* ValueFieldReference) (cons $1 $2)])
-  (define-nt ValueSet-FieldName
-    [(Object/Set-Field* ValueSetFieldReference) (cons $1 $2)])
-  (define-nt Object-FieldName
-    [(Object/Set-Field* ObjectFieldReference) (cons $1 $2)])
-  (define-nt ObjectSet-FieldName
-    [(Object/Set-Field* ObjectSetFieldReference) (cons $1 $2)]))
+(define-nt* FieldReference* FieldReference #:post [DOT])
+(define-nt wordFieldName
+  [(FieldReference* Word) (append $1 (list $2))])
+(define-nt idFieldName
+  [(FieldReference* &Identifier) (append $1 (list $2))])
 
 (define-nt Object
   [(ObjectDefn) $1]
@@ -788,14 +774,6 @@
   [(ReferencedObjects DOT Value-FieldName)
    (value:from-object $1 $3)])
 
-(define-nt ValueSetFromObjects
-  [(ReferencedObjects DOT ValueSet-FieldName)
-   (value-set:from-object $1 $3)])
-
-(define-nt TypeFromObject
-  [(ReferencedObjects DOT Type-FieldName)
-   (type:from-object $1 $3)])
-
 (define-nt ObjectFromObject
   [(ReferencedObjects DOT Object-FieldName)
    (object:from-object $1 $3)])
@@ -805,16 +783,9 @@
    (object-set:from-object $1 $3)])
 
 (define-nt ReferencedObjects
-  [(DefinedObject) $1]
-  [(DefinedObjectSet) $1]
-  [(ParameterizedObject) $1]
-  [(ParameterizedObjectSet) $1])
+  [(DefinedRefOrApp) $1])
 
 ;; 15.7 (pdf 369)
-
-(define-nt ObjectClassFieldType
-  [(DefinedObjectClass DOT FieldName)
-   (type:from-class $1 $3)])
 
 ;; (define-nt ObjectClassFieldValue
 ;;   [(OpenTypeFieldVal) $1]
@@ -861,9 +832,6 @@
   [(TYPE-IDENTIFIER) (class:type-identifier)]
   #;[(ABSTRACT-SYNTAX) ?])
 
-(define-nt InstanceOfType
-  [(INSTANCE OF DefinedObjectClass) (type:instance-of $3)])
-
 ;; TYPE-IDENTIFIER ::= CLASS { &id OBJECT IDENTIFIER UNIQUE, &Type }
 ;; WITH SYNTAX { &Type IDENTIFIED BY id } -- ??? id, not &id ???
 
@@ -874,38 +842,6 @@
 
 ;; ============================================================
 ;; 17 Paramerization (pdf 405)
-
-(define-nt ParameterizedAssignment
-  [(ParameterizedTypeAssignment) $1]
-  [(ParameterizedValueAssignment) $1]
-  [(ParameterizedValueSetAssignment) $1]
-  [(ParameterizedObjectClassAssignment) $1]
-  [(ParameterizedObjectAssignment) $1]
-  [(ParameterizedObjectSetAssignment) $1])
-
-(define-nt ParameterizedTypeAssignment
-  [(TypeReference ParameterList ASSIGN Type)
-   (assign:type $1 $2 $4)])
-
-(define-nt ParameterizedValueAssignment
-  [(ValueReference ParameterList Type ASSIGN Value)
-   (assign:value $1 $2 $3 $5)])
-
-(define-nt ParameterizedValueSetAssignment
-  [(TypeReference ParameterList Type ASSIGN ValueSet)
-   (assign:value-set $1 $2 $3 $5)])
-
-(define-nt ParameterizedObjectClassAssignment
-  [(ObjectClassReference ParameterList ASSIGN ObjectClass)
-   (assign:class $1 $2 $4)])
-
-(define-nt ParameterizedObjectAssignment
-  [(ObjectReference ParameterList DefinedObjectClass ASSIGN Object)
-   (assign:object $1 $2 $3 $5)])
-
-(define-nt ParameterizedObjectSetAssignment
-  [(ObjectSetReference ParameterList DefinedObjectClass ASSIGN ObjectSet)
-   (assign:object-set $1 $2 $3 $5)])
 
 (define-nt ParameterList
   [(LBRACE Parameter+ RBRACE) $2])
@@ -928,15 +864,6 @@
 (define-nt DummyReference
   [(Reference) $1])
 
-(define-nt ParameterizedType
-  [(SimpleDefinedType ActualParameterList)
-   (expr:apply $1 $2)])
-;; ParameterizedValueSetType ambiguous w/ ParameterizedType
-
-(define-nt SimpleDefinedType
-  [(ExternalTypeReference) $1]
-  [(TypeReference) $1])
-
 (define-nt ParameterizedValue
   [(SimpleDefinedValue ActualParameterList)
    (expr:apply $1 $2)])
@@ -944,10 +871,6 @@
 (define-nt SimpleDefinedValue
   [(ExternalValueReference) $1]
   [(ValueReference) $1])
-
-(define-nt ParameterizedObjectClass
-  [(DefinedObjectClass ActualParameterList)
-   (expr:apply $1 $2)])
 
 (define-nt ParameterizedObject
   [(DefinedObject ActualParameterList)

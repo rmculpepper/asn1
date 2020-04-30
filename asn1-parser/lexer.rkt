@@ -40,15 +40,15 @@
    [(:seq (:/ #\A #\Z) (:* (:? #\-) (:/ #\a #\z #\A #\Z #\0 #\9)))
     (or (hash-ref reserved-word-h lexeme #f)
         (if (regexp-match? #rx"[a-z]" lexeme)
-            (token-Word (string->symbol lexeme))
-            (token-WORD (string->symbol lexeme))))]
+            (token-word (string->symbol lexeme))
+            (token-word-caps (string->symbol lexeme))))]
    ;; ----------------------------------------
    [(:seq #\& (:/ #\a #\z) (:* (:? #\-) (:/ #\a #\z #\A #\Z #\0 #\9)))
     (token-amp-id (string->symbol lexeme))]
    [(:seq #\& (:/ #\A #\Z) (:* (:? #\-) (:/ #\a #\z #\A #\Z #\0 #\9)))
     (if (regexp-match? #rx"[a-z]" lexeme)
-        (token-amp-Word (string->symbol lexeme))
-        (token-amp-WORD (string->symbol lexeme)))]
+        (token-amp-word (string->symbol lexeme))
+        (token-amp-word-caps (string->symbol lexeme)))]
    ;; ----------------------------------------
 
    ["::=" 'ASSIGN]
@@ -105,11 +105,11 @@
    hstring
    id
    num
-   Word
-   WORD
+   word
+   word-caps
    amp-id
-   amp-Word
-   amp-WORD
+   amp-word
+   amp-word-caps
    ]
 
   #:empty-tokens
