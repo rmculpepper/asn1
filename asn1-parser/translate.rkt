@@ -176,6 +176,7 @@
 ;; Translation
 
 (define current-fixme-mode (make-parameter 'comment))
+(define current-tag-mode (make-parameter #f))
 (define current-env (make-parameter (hash)))
 
 (define (decl-of-module m)
@@ -183,7 +184,12 @@
     [(mod:defn id tagmode extmode exports imports assignments)
      ;; FIXME: id, tagmode, extmode, exports, imports
      (define env (env-of-assignments assignments))
-     (parameterize ((current-env env))
+     (parameterize ((current-env env)
+                    (current-tag-mode
+                     (case tagmode
+                       [(implicit) 'implicit]
+                       [(automatic) 'automatic]
+                       [(explicit #f) 'explicit])))
        (decl-of-assignments assignments))]))
 
 (define (lookup-class ref)
@@ -256,7 +262,7 @@
     [(type:string subtype) subtype]
     [(type:tagged (tag tagclass tagnum) mode type)
      (begin/fixme
-       (and (not mode) "unknown tag mode")
+       (and (not mode) (not (eq? (current-tag-mode) 'explicit)) "unknown tag mode")
        `(TAG ,(match tagclass
                 ['universal '#:universal]
                 ['application '#:application]
@@ -265,7 +271,7 @@
              ,@(match mode
                  ['implicit '(#:implicit)]
                  ['explicit '(#:explicit)]
-                 [#f '(#:explicit)]) ;; FIXME
+                 [#f '(#:explicit)])
              ,tagnum
              ,(expr-of type)))]
     ;; ----

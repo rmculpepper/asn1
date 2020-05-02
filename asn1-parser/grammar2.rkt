@@ -2,7 +2,7 @@
 (require racket/match
          "parser-util.rkt"
          "lexer.rkt"
-         "ast.rkt")
+         "ast2.rkt")
 (provide asn1-module-parser
          asn1-assignments-parser)
 
@@ -30,6 +30,30 @@
 (define-nt ValueSetFieldReference [(&Word) $1])
 (define-nt ObjectFieldReference [(&Identifier) $1])
 (define-nt ObjectSetFieldReference [(&Word) $1])
+
+(define prelude-h
+  '(;; UsefulObjectClassReference
+    (TYPE-IDENTIFIER    class)
+    (ABSTRACT-SYNTAX    class)
+    ;; CharacterStringType
+    (BMPString          type)
+    (GeneralString      type)
+    (GraphicString      type)
+    (IA5String          type)
+    (ISO646String       type)
+    (NumericString      type)
+    (PrintableString    type)
+    (TeletexString      type)
+    (T61String          type)
+    (UniversalString    type)
+    (UTF8String         type)
+    (VideotexString     type)
+    (VisibleString      type)
+    ;; UsefulType
+    (GeneralizedTime    type)
+    (UTCTime            type)
+    (ObjectDescriptor   type)
+    ))
 
 (define-nt ReservedWORD
   ;; Don't allow type names and value names as syntax literals
@@ -185,7 +209,12 @@
 (define-nt DefinedObject
   [(DefinedIdOrApp) $1])
 (define-nt DefinedObjectSet
-  [(DefinedWordOrApp) $1])
+  [(SimpleDefinedWord) $1])
+(define-nt DefinedObjectClass
+  [(SimpleDefinedWord) $1])
+
+(define-nt ReferencedObjects
+  [(DefinedRefOrApp) $1])
 
 ;; ============================================================
 ;; 9.1 Assignments (p 106, pdf 134)
@@ -204,7 +233,7 @@
   [(Word Type+DefinedObjectClass ASSIGN ValueSet+ObjectSet)
    ;; TypeReference Type ASSIGN ValueSet
    ;; ObjectSetReference DefinedObjectClass ASSIGN ObjectSet
-   (assign:object-set $1 null $2 $4)]
+   (assign:x-set $1 null $2 $4)]
   ;; --- Parameterized assignments ---
   [(Word ParameterList ASSIGN Type+ObjectClass)
    ;; TypeReference ParameterList ASSIGN Type
@@ -217,12 +246,40 @@
   [(Word ParameterList Type+DefinedObjectClass ASSIGN ValueSet+ObjectSet)
    ;; TypeReference ParameterList Type ASSIGN ValueSet
    ;; ObjectSetReference ParameterList DefinedObjectClass ASSIGN ObjectSet
-   (assign:object-set $1 $2 $3 $5)])
+   (assign:x-set $1 $2 $3 $5)])
 
-Type+ObjectClass
-Type+DefinedObjectClass
-Value+Object
-ValueSet+ObjectSet
+(define-nt Type+ObjectClass
+  [(Type) $1]
+  ;; ObjectClass \ Type
+  ;;  X [(DefinedObjectClass) _] -- overlaps Type
+  ;;  X [(DefinedObjectClass ActualParameterList) _] -- overlaps Type
+  [(CLASS LBRACE FieldSpec+ RBRACE WithSyntaxSpec) (class:defn $3 $5)])
+
+(define-nt Type+DefinedObjectClass
+  [(Type) $1]
+  #| DefinedObjectClass \ Type is empty |#)
+
+(define-nt Value+Object
+  [(Value) $1]
+  ;; Object \ Value
+  ;;  X [(DefinedObject) _]
+  ;;  X [(DefinedObject ActualParameterList) _]
+  ;;  X [(ReferencedObjects DOT idFieldName) _]
+  ;; DefaultSyntax
+  [(LBRACE FieldSetting* RBRACE) (object:defn $2)]
+  ;; DefinedSyntax -- overlaps, but not subset of Value
+  [(LBRACE DefinedSyntaxToken* RBRACE) (object:sugar $2)])
+
+(define-nt Type+ValueSet+ObjectSet
+  [(Type) $1]
+  [(ValueSet+ObjectSet) $1])
+
+(define-nt ValueSet+ObjectSet
+  [(LBRACE RootElementSetSpec OptionalExtensionMarker RBRACE) (x-set:defn $2)]
+  [(LBRACE ELLIPSIS RBRACE) (x-set:defn null)])
+
+;; ============================================================
+;; Type
 
 (define-nt Type
   ;; ----------------------------------------
@@ -250,27 +307,6 @@ ValueSet+ObjectSet
   [(SET LBRACE ComponentTypeLists RBRACE) (type:set $3)]
   [(SET OF Type) (type:set-of $3 #f)]
   [(SET SizeConstraint OF Type) (type:set-of $4 $2)] ;; from TypeWithConstraint
-  ;; ----------------------------------------
-  ;; CharacterStringType
-  ;; FIXME: un-reserve these names, just parse them as TypeReferences ?
-  [(BMPString)          (type:string 'BMPString)]
-  [(GeneralString)      (type:string 'GeneralString)]
-  [(GraphicString)      (type:string 'GraphicString)]
-  [(IA5String)          (type:string 'IA5String)]
-  [(ISO646String)       (type:string 'ISO656String)]
-  [(NumericString)      (type:string 'NumericString)]
-  [(PrintableString)    (type:string 'PrintableString)]
-  [(TeletexString)      (type:string 'TeletexString)]
-  [(T61String)          (type:string 'T61String)]
-  [(UniversalString)    (type:string 'UniversalString)]
-  [(UTF8String)         (type:string 'UTF8String)]
-  [(VideotexString)     (type:string 'VideotexString)]
-  [(VisibleString)      (type:string 'VisibleString)]
-  ;; ----------------------------------------
-  ;; UsefulType
-  [(GeneralizedTime)    (type 'GeneralizedTime)]
-  [(UTCTime)            (type 'UTCTime)]
-  [(ObjectDescriptor)   (type 'ObjectDescriptor)]
 
   ;; ----------------------------------------
   ;; DefinedType
@@ -293,19 +329,53 @@ ValueSet+ObjectSet
   [(DefinedRefOrApp DOT wordFieldName) (type:from-object $1 $3)]
   )
 
-
-
+;; ============================================================
+;; Value
 
 (define-nt Value
-  [(BuiltinValue) $1]
+  [(NULL) (value 'NULL)]
+  [(TRUE) (value #t)]
+  [(FALSE) (value #f)]
+  [(Number) (value $1)]
+  [(bstring) (value:bstring $1)] ;; BIT STRING, OCTET STRING
+  [(hstring) (value:hstring $1)] ;; BIT STRING, OCTET STRING
+  [(cstring) (value $1)] ;; character string types
+  [(Identifier COLON Value) (value:choice $1 $3)]
+  ;; [(LBRACE Identifier* RBRACE) (value:bit-list $2)] ;; BIT STRING; overlaps SE[QT]-OF
+  [(LBRACE Value* RBRACE) (value:seq/set-of $2)]
+  [(LBRACE NamedValue* RBRACE) (value:seq/set $2)]
+  [(LBRACE GenOIDComponents+ RBRACE) (value:oid/reloid $2)] ;; = ObjectIdentifierValue
+  ;; ----------------------------------------
+  ;; ObjectClassField -- overlaps with ChoiceVoid
+  ;; FIXME: maybe only used in eg Setting ???
+  [(Type COLON Value) (value:annotated $1 $3)]
+  ;; ----------------------------------------
   [(DefinedValue) $1]
-  [(ValueFromObject) $1])
+  ;; ----------------------------------------
+  ;; ValueFromObject
+  [(ReferencedObjects DOT idFieldName) (value:from-object $1 $3)])
+
+;; ============================================================
+;; Class, Object, etc
 
 (define-nt ObjectClass
-  [(DefinedObjectClass) $1]
   [(CLASS LBRACE FieldSpec+ RBRACE WithSyntaxSpec) (class:defn $3 $5)]
-  [(DefinedObjectClass ActualParameterList)
-   (expr:apply $1 $2)])
+  [(DefinedObjectClass) $1]
+  [(DefinedObjectClass ActualParameterList) (expr:apply $1 $2)])
+
+(define-nt Object
+  [(DefinedObject) $1]
+  [(DefinedObject ActualParameterList) (expr:apply $1 $2)]
+  ;; ObjectFromObject
+  [(ReferencedObjects DOT idFieldName) (object:from-object $1 $3)]
+  ;; DefaultSyntax
+  [(LBRACE FieldSetting* RBRACE) (object:defn $2)]
+  ;; DefinedSyntax
+  [(LBRACE DefinedSyntaxToken* RBRACE) (object:sugar $2)])
+
+
+;; ============================================================
+;; ???
 
 
 
@@ -314,14 +384,6 @@ ValueSet+ObjectSet
 
 ;; ============================================================
 ;; 9.3 Local and external references (pdf 146)
-
-(define-nt DefinedObjectClass
-  [(ExternalObjectClassReference) $1]
-  [(ObjectClassReference) $1]
-  [(UsefulObjectClassReference) $1])
-
-(define-nt ExternalObjectClassReference
-  [(ModuleReference DOT ObjectClassReference) (ref:dot $1 $3)])
 
 ;; ============================================================
 ;; TYPES:
@@ -413,28 +475,6 @@ ValueSet+ObjectSet
 
 ;; ============================================================
 ;; VALUES:
-
-(define-nt BuiltinValue
-  [(NULL) (value 'NULL)]
-  [(TRUE) (value #t)]
-  [(FALSE) (value #f)]
-  [(num) (value $1)]
-  [(bstring) (value:bstring $1)] ;; BIT STRING, OCTET STRING
-  [(hstring) (value:hstring $1)] ;; BIT STRING, OCTET STRING
-  [(cstring) (value $1)] ;; character string types
-  [(Identifier COLON Value) (value:choice $1 $3)]
-  ;; [(LBRACE Identifier* RBRACE) (value:bit-list $2)] ;; BIT STRING; overlaps SE[QT]-OF
-  [(LBRACE Value* RBRACE) (value:seq/set-of $2)]
-  [(LBRACE NamedValue* RBRACE) (value:seq/set $2)]
-  [(LBRACE GenOIDComponents+ RBRACE) (value:oid/reloid $2)] ;; = ObjectIdentifierValue
-  ;; ----------------------------------------
-  [(ObjectIdentifierValue) $1]
-  #;[(EmbeddedPDVValue) $1]
-  #;[(ExternalValue) $1]
-  [(Type COLON Value)  ;; spec has [(ObjectClassFieldValue) $1], overlaps with BuiltinValue
-   (value:annotated $1 $3)]
-  #;[(RealValue) $1]
-  #;[(TaggedValue) $1])
 
 ;; ----------------------------------------
 ;; 10 Basic types
@@ -615,65 +655,39 @@ ValueSet+ObjectSet
 (define-nt+ FieldSpec+ FieldSpec #:sep [COMMA])
 
 (define-nt FieldSpec
-  [(TypeFieldSpec) $1]
-  [(FixedTypeValueFieldSpec) $1]
-  [(VariableTypeValueFieldSpec) $1]
-  [(FixedTypeValueSetFieldSpec) $1]
-  [(VariableTypeValueSetFieldSpec) $1]
-  [(ObjectFieldSpec) $1]
-  [(ObjectSetFieldSpec) $1])
-
-(define-nt TypeFieldSpec
-  [(TypeFieldReference TypeOptionalitySpec) (field:type $1 $2)])
-
-(define-nt TypeOptionalitySpec
-  [(OPTIONAL) (opt:optional #f)] [(DEFAULT Type) (opt:default #f $2)] [() #f])
-
-(define-nt FixedTypeValueFieldSpec
-  [(ValueFieldReference Type Unique ValueOptionalitySpec)
-   (field:value/fixed-type $1 $2 $3 $4)])
-
-(define-nt Unique
-  [(UNIQUE) 'unique] [() #f])
+  [(ValueFieldReference Type UNIQUE ValueOptionalitySpec)
+   (field:value/fixed-type $1 $2 'unique $4)]
+  ;; ----
+  [(TypeFieldReference TypeOptionalitySpec) (field:type $1 $2)]
+  [(&Word Type+DefinedObjectClass ValueSet+ObjectSetOptionalitySpec)
+   ;; [(ValueSetFieldReference Type ValueSetOptionalitySpec) _]
+   ;; [(ObjectSetFieldReference DefinedObjectClass ObjectSetOptionalitySpec) _]
+   (field:&word $1 $2 $3)]
+  [(ValueFieldReference wordFieldName ValueOptionalitySpec)
+   (field:value/var-type $1 $2 $3)]
+  [(ValueSetFieldReference wordFieldName ValueSetOptionalitySpec)
+   (field:value-set/var-type $1 $2 $3)]
+  [(&Identifier Type+DefinedObjectClass Value+ObjectOptionalitySpec)
+   ;; [(ValueFieldReference Type ValueOptionalitySpec) _]
+   ;; [(ObjectFieldReference DefinedObjectClass ObjectOptionalitySpec) _]
+   (field:&id $1 $2 $3)])
 
 (define-nt ValueOptionalitySpec
   [(OPTIONAL) (opt:optional #f)] [(DEFAULT Value) (opt:default #f $2)] [() #f])
-
-(define-nt VariableTypeValueFieldSpec
-  [(ValueFieldReference Type-FieldName ValueOptionalitySpec)
-   (field:value/var-type $1 $2 $3)])
-
-(define-nt FixedTypeValueSetFieldSpec
-  [(ValueSetFieldReference Type ValueSetOptionalitySpec)
-   (field:value-set/fixed-type $1 $2 $3)])
-
+(define-nt TypeOptionalitySpec
+  [(OPTIONAL) (opt:optional #f)] [(DEFAULT Type) (opt:default #f $2)] [() #f])
 (define-nt ValueSetOptionalitySpec
   [(OPTIONAL) (opt:optional #f)] [(DEFAULT ValueSet) (opt:default #f $2)] [() #f])
-
-(define-nt VariableTypeValueSetFieldSpec
-  [(ValueSetFieldReference Type-FieldName ValueSetOptionalitySpec)
-   (field:value-set/var-type $1 $2 $3)])
-
-(define-nt ObjectFieldSpec
-  [(ObjectFieldReference DefinedObjectClass ObjectOptionalitySpec)
-   (field:object $1 $2 $3)])
-
-(define-nt ObjectOptionalitySpec
-  [(OPTIONAL) (opt:optional #f)] [(DEFAULT Object) (opt:default #f $2)] [() #f])
-
-(define-nt ObjectSetFieldSpec
-  [(ObjectSetFieldReference DefinedObjectClass ObjectSetOptionalitySpec)
-   (field:object-set $1 $2 $3)])
-
-(define-nt ObjectSetOptionalitySpec
-  [(OPTIONAL) (opt:optional #f)] [(DEFAULT ObjectSet) (opt:default #f $2)] [() #f])
+(define-nt Value+ObjectOptionalitySpec
+  [(OPTIONAL) (opt:optional #f)] [(DEFAULT Value+Object) (opt:default #f $2)] [() #f])
+(define-nt ValueSet+ObjectSetOptionalitySpec
+  [(OPTIONAL) (opt:optional #f)] [(DEFAULT ValueSet+ObjectSet) (opt:default #f $2)] [() #f])
 
 (begin ;; DEPRECATED: imprecise
   (define-nt FieldName
     [(PrimitiveFieldName+) $1])
   (define-nt+ PrimitiveFieldName+ PrimitiveFieldName #:sep [DOT])
-  (define-nt PrimitiveFieldName
-    [(FieldReference) $1]))
+  (define-nt PrimitiveFieldName [(FieldReference) $1]))
 
 (define-nt* FieldReference* FieldReference #:post [DOT])
 (define-nt wordFieldName
@@ -681,37 +695,25 @@ ValueSet+ObjectSet
 (define-nt idFieldName
   [(FieldReference* &Identifier) (append $1 (list $2))])
 
-(define-nt Object
-  [(ObjectDefn) $1]
-  [(DefinedObject) $1]
-  [(ObjectFromObject) $1]
-  [(ParameterizedObject) $1])
-
-(define-nt ObjectDefn
-  ;; DefaultSyntax
-  [(LBRACE FieldSetting* RBRACE) (object:defn $2)]
-  ;; DefinedSyntax
-  [(LBRACE DefinedSyntaxToken* RBRACE) (object:sugar $2)])
-
 (define-nt*+ FieldSetting* FieldSetting+ FieldSetting #:sep [COMMA])
 
 (define-nt FieldSetting
-  [(TypeFieldReference Type) (ast:named $1 $2)]
-  [(ValueFieldReference Value) (ast:named $1 $2)]
-  [(ValueSetFieldReference ValueSet) (ast:named $1 $2)]
-  [(ObjectFieldReference Object) (ast:named $1 $2)]
-  [(ObjectSetFieldReference ObjectSet) (ast:named $1 $2)])
+  [(&Identifier Value+Object) (ast:named $1 $2)]
+  [(&Word Type+ValueSet+ObjectSet) (ast:named $1 $2)])
+
+(define-nt Setting
+  [(Value+Object) $1]
+  [(Type+ValueSet+ObjectSet) $1])
 
 ;; IMPRECISE
 ;; (define-nt FieldSetting
 ;;   [(PrimitiveFieldName Setting) (fixme $1 $2)])
-
-(define-nt Setting
-  [(Type) $1]
-  [(Value) $1]
-  [(ValueSet) $1]
-  [(Object) $1]
-  [(ObjectSet) $1])
+;; (define-nt Setting
+;;   [(Type) $1]
+;;   [(Value) $1]
+;;   [(ValueSet) $1]
+;;   [(Object) $1]
+;;   [(ObjectSet) $1])
 
 ;; 15.3 User-friendly syntax
 
@@ -736,7 +738,7 @@ ValueSet+ObjectSet
   [(LBRACKET TokenOrGroupSpec+ RBRACKET) (sugar:optional $2)])
 
 (define-nt Literal
-  [(WORD) (sugar:literal $1)]
+  [(word-caps) (sugar:literal $1)]
   [(ReservedWORD) (sugar:literal $1)]
   [(COMMA) (sugar:literal #\,)])
 
@@ -757,33 +759,14 @@ ValueSet+ObjectSet
   [(ELLIPSIS) null])
 
 (define-nt ValueSet
-  [(LBRACE ElementSetSpecs RBRACE)
-   (value-set:defn $2)])
+  [(LBRACE ElementSetSpecs RBRACE) (value-set:defn $2)])
 
 (define-nt ObjectSetElements
   [(Object) $1]
-  [(DefinedObjectSet) $1]
-  [(ObjectSetFromObjects) $1]
-  [(ParameterizedObjectSet) $1])
+  [(DefinedWordOrApp) $1]
+  [(ReferencedObjects DOT wordFieldName) (object-set:from-object $1 $3)])
 
 ;; 15.6 Accessing the information stored in objects and object sets (pdf 364)
-
-;; FIXME: simplify/unify ASTs?
-
-(define-nt ValueFromObject
-  [(ReferencedObjects DOT Value-FieldName)
-   (value:from-object $1 $3)])
-
-(define-nt ObjectFromObject
-  [(ReferencedObjects DOT Object-FieldName)
-   (object:from-object $1 $3)])
-
-(define-nt ObjectSetFromObjects
-  [(ReferencedObjects DOT ObjectSet-FieldName)
-   (object-set:from-object $1 $3)])
-
-(define-nt ReferencedObjects
-  [(DefinedRefOrApp) $1])
 
 ;; 15.7 (pdf 369)
 
@@ -828,10 +811,6 @@ ValueSet+ObjectSet
 
 ;; 15.9 (pdf 383)
 
-(define-nt UsefulObjectClassReference
-  [(TYPE-IDENTIFIER) (class:type-identifier)]
-  #;[(ABSTRACT-SYNTAX) ?])
-
 ;; TYPE-IDENTIFIER ::= CLASS { &id OBJECT IDENTIFIER UNIQUE, &Type }
 ;; WITH SYNTAX { &Type IDENTIFIED BY id } -- ??? id, not &id ???
 
@@ -849,36 +828,13 @@ ValueSet+ObjectSet
 (define-nt+ Parameter+ Parameter #:sep [COMMA])
 
 (define-nt Parameter
-  [(ParamGovernor COLON DummyReference) (param $1 $3)]
-  [(DummyReference) (param #f $1)])
+  [(ParamGovernor COLON Reference) (param $1 $3)]
+  [(Reference) (param #f $1)])
 (define-nt ParamGovernor
-  [(Governor) $1]
-  [(DummyGovernor) $1])
+  ;; [(Reference) _] -- overlaps with Type
+  [(Governor) $1])
 (define-nt Governor
-  [(Type) $1]
-  [(DefinedObjectClass) $1])
-
-(define-nt DummyGovernor
-  [(DummyReference) $1])
-
-(define-nt DummyReference
-  [(Reference) $1])
-
-(define-nt ParameterizedValue
-  [(SimpleDefinedValue ActualParameterList)
-   (expr:apply $1 $2)])
-
-(define-nt SimpleDefinedValue
-  [(ExternalValueReference) $1]
-  [(ValueReference) $1])
-
-(define-nt ParameterizedObject
-  [(DefinedObject ActualParameterList)
-   (expr:apply $1 $2)])
-
-(define-nt ParameterizedObjectSet
-  [(DefinedObjectSet ActualParameterList)
-   (expr:apply $1 $2)])
+  [(Type+DefinedObjectClass) $1])
 
 (define-nt ActualParameterList
   [(LBRACE ActualParameter+ RBRACE) $2])
@@ -886,12 +842,9 @@ ValueSet+ObjectSet
 (define-nt+ ActualParameter+ ActualParameter #:sep [COMMA])
 
 (define-nt ActualParameter
-  [(Type) $1]
-  [(Value) $1]
-  [(ValueSet) $1]
-  [(DefinedObjectClass) $1]
-  [(Object) $1]
-  [(ObjectSet) $1])
+  [(Value+Object) $1]
+  [(Type+ValueSet+ObjectSet) $1]
+  #;[(DefinedObjectClass) $1])
 
 
 ;; ============================================================

@@ -8,6 +8,11 @@
 
 (use-tokens! asn1-tokens)
 
+(define-nt Word [(word) $1])
+(define-nt WORD [(word-caps) $1])
+(define-nt amp-Word [(amp-word) $1])
+(define-nt amp-WORD [(amp-word-caps) $1])
+
 (define-nt Word/WORD [(Word) $1] [(WORD) $1])
 (define-nt amp-Word/WORD [(amp-Word) $1] [(amp-WORD) $1])
 
