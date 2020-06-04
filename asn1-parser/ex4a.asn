@@ -1,0 +1,6 @@
+
+SubjectPublicKeyInfo ::= SEQUENCE {
+        algorithm AlgorithmIdentifier {{ECPKAlgorithms}} (WITH COMPONENTS
+                {algorithm, parameters}) ,
+        subjectPublicKey BIT STRING
+}
