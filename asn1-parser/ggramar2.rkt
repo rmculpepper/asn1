@@ -223,31 +223,38 @@
 (define-nt* AssignmentList Assignment #:post [])
 
 (define-nt Assignment
-  [(Word ASSIGN Type+ObjectClass)
+  [(Word ASSIGN BAG-Type+ObjectClass)
    ;; TypeReference ASSIGN Type
    ;; ObjectClassReference ASSIGN ObjectClass
    (assign:word $1 null $3)]
-  [([id Identifier] [ty Type+DefinedObjectClass] ASSIGN [val Value+Object])
+  [([id Identifier] [ty Type+DefinedObjectClass] ASSIGN [val BAG-Value+Object])
    ;; ValueReference Type ASSIGN Value
    ;; ObjectReference DefinedObjectClass ASSIGN Object
    (assign:id id null ty val)]
-  [(Word Type+DefinedObjectClass ASSIGN ValueSet+ObjectSet)
+  [(Word Type+DefinedObjectClass ASSIGN BAG-ValueSet+ObjectSet)
    ;; TypeReference Type ASSIGN ValueSet
    ;; ObjectSetReference DefinedObjectClass ASSIGN ObjectSet
    (assign:x-set $1 null $2 $4)]
   ;; --- Parameterized assignments ---
-  [(Word ParameterList ASSIGN Type+ObjectClass)
+  [(Word ParameterList ASSIGN BAG-Type+ObjectClass)
    ;; TypeReference ParameterList ASSIGN Type
    ;; ObjectClassReference ParameterList ASSIGN ObjectClass
    (assign:word $1 $2 $4)]
-  [(Identifier ParameterList Type+DefinedObjectClass ASSIGN Value+Object)
+  [(Identifier ParameterList Type+DefinedObjectClass ASSIGN BAG-Value+Object)
    ;; ValueReference ParameterList Type ASSIGN Value
    ;; ObjectReference ParameterList DefinedObjectClass ASSIGN Object
    (assign:id $1 $2 $3 $5)]
-  [(Word ParameterList Type+DefinedObjectClass ASSIGN ValueSet+ObjectSet)
+  [(Word ParameterList Type+DefinedObjectClass ASSIGN BAG-ValueSet+ObjectSet)
    ;; TypeReference ParameterList Type ASSIGN ValueSet
    ;; ObjectSetReference ParameterList DefinedObjectClass ASSIGN ObjectSet
    (assign:x-set $1 $2 $3 $5)])
+
+(define-nt BAG-Type+ObjectClass
+  [(Type+ObjectClass) (action:collect $1)])
+(define-nt BAG-Value+Object
+  [(Value+Object) (action:collect $1)])
+(define-nt BAG-ValueSet+ObjectSet
+  [(ValueSet+ObjectSet) (action:collect $1)])
 
 (define-nt Type+ObjectClass
   [(Type) $1]
@@ -1048,6 +1055,11 @@
        (lambda (in)
          (port-count-lines! in)
          (pretty-print
+          (remove-duplicates
+           (map simplify-collect-boxes
+                (send asn1-module-parser parse* (asn1-lexer in)))))
+         #|
+         (pretty-print
           (send asn1-module-header-parser parse* (asn1-lexer in)))
          (let loop ()
            (define rs (send asn1-assignment-parser parse* (asn1-lexer in)))
@@ -1063,4 +1075,5 @@
              (void (read-line)))
            (pretty-print drs)
            (unless (for/and ([r (in-list rs*)]) (eq? (token-value r) #f))
-             (loop))))))))
+             (loop)))
+         |#)))))
