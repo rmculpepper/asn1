@@ -1,6 +1,8 @@
 #lang racket/base
 (require racket/match
+         racket/list
          grrparse
+         "tree-util.rkt"
          "gparser-util.rkt"
          "glexer.rkt"
          "ast2.rkt")
@@ -272,7 +274,7 @@
    ;; at least one all-caps literal symbol. FIXME: maybe better to
    ;; just check for overlap with reloid and set/seq notation?
    (define (WORD? v) (and (symbol? v) (not (regexp-match? #rx"[a-z]" (symbol->string v)))))
-   (cond [(ormap WORD? $2) (object:sugar $2)]
+   (cond [(ormap WORD? $2) (action:collect (object:sugar $2))]
          [else (action:reject)])])
 
 (define-nt Type+ValueSet+ObjectSet
@@ -380,7 +382,7 @@
   ;; DefaultSyntax
   [(LBRACE FieldSetting* RBRACE) (object:defn $2)]
   ;; DefinedSyntax
-  [(LBRACE DefinedSyntaxToken* RBRACE) (object:sugar $2)])
+  [(LBRACE DefinedSyntaxToken* RBRACE) (action:collect (object:sugar $2))])
 
 
 ;; ============================================================
@@ -515,11 +517,13 @@
 ;; 13 Subtype constraints (pdf 285)
 
 (define-nt SingleValue
-  [(Value) (constraint:single-value $1)])
+  ;; SingleValue constraint overlaps *SetReference
+  [(Value) (if (symbol? $1) $1 (constraint:single-value $1))])
 
 (define-nt ContainedSubtype
+  ;; INCLUDES was mandatory in 1990, optional since :(
   [(INCLUDES Type) (constraint:includes $2)]
-  [(Type) (constraint:includes $1)])
+  #;[(Type) (constraint:includes $1)])
 
 (define-nt ValueRange
   [(LowerEndPoint DOTDOT UpperEndPoint)
@@ -752,16 +756,6 @@
   [(COMMA) (sugar:literal #\,)])
 
 (define-nt* DefinedSyntaxToken* DefinedSyntaxToken #:post [])
-
-;; (define-nt DefinedSyntaxToken
-;;   [([s Setting])
-;;    (match s
-;;      [(? symbol? (not (app symbol->string (regexp "[a-z]"))))
-;;       (action:reject)]
-;;      [(value 'NULL) ;; also gets parsed as (type 'NULL)
-;;       (action:reject)]
-;;      [_ s])]
-;;   [(Literal) $1])
 
 (define-nt DefinedSyntaxToken
   [([s Setting])
@@ -1027,11 +1021,21 @@
 (define (ok-object-set? v ty)
   (and (memq (detect-term-kind v) '(object-set x-set #f))))
 
+(define (simplify-collect-boxes v)
+  (define (simplify v)
+    (cond [(collect-box? v)
+           (define subvs
+             (remove-duplicates
+              (map simplify-collect-boxes (collect-box-contents v))))
+           (cond [(= 1 (length subvs)) (car subvs)]
+                 [else (ambiguous subvs)])]
+          [else v]))
+  (tree-transform v simplify))
+
 ;; ============================================================
 
 (module+ main
   (require racket/pretty
-           racket/list
            racket/cmdline)
   #;(define the-parser asn1-module-parser)
   (command-line
@@ -1047,7 +1051,7 @@
           (send asn1-module-header-parser parse* (asn1-lexer in)))
          (let loop ()
            (define rs (send asn1-assignment-parser parse* (asn1-lexer in)))
-           (define rs* (remove-duplicates rs))
+           (define rs* (remove-duplicates (map simplify-collect-boxes rs)))
            (define drs (filter (match-lambda [(token _ v) (ok-definition? v)]) rs*))
            (printf "\n-- ~s => ~s => ~s --\n" (length rs) (length rs*) (length drs))
            (match drs

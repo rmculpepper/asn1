@@ -363,3 +363,5 @@
 
 ;; ----------------------------------------
 (define fixme vector)
+
+(struct ambiguous (vs) #:prefab)
