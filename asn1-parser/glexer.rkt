@@ -107,9 +107,9 @@
 
    ;; ----------------------------------------
 
-   #px"&[a-zA-Z](?:-?[a-zA-Z0-9])*"
+   #px"[&a-zA-Z](?:-?[a-zA-Z0-9])*"
    (lambda (lm s e)
-     (cond [(regexp-match? #rx"^[a-z]" lm)
+     (cond [(regexp-match? #rx"^&[a-z]" lm)
             (token 'amp-id (string->symbol lm))]
            [else (token 'amp-word (string->symbol lm))]))
 

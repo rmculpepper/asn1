@@ -262,7 +262,7 @@
     [(type:string subtype) subtype]
     [(type:tagged (tag tagclass tagnum) mode type)
      (begin/fixme
-       (and (not mode) (not (eq? (current-tag-mode) 'explicit)) "unknown tag mode")
+       (and (not mode) (not (eq? (current-tag-mode) 'explicit)) "check tag mode")
        `(TAG ,(match tagclass
                 ['universal '#:universal]
                 ['application '#:application]
@@ -271,7 +271,10 @@
              ,@(match mode
                  ['implicit '(#:implicit)]
                  ['explicit '(#:explicit)]
-                 [#f '(#:explicit)])
+                 [#f (case (current-tag-mode)
+                       [(explicit) '(#:explicit)]
+                       [(implicit) '(#:implicit)] ;; FIXME, not for open types
+                       [(automatic) '(#:FIXME)])])
              ,tagnum
              ,(expr-of type)))]
     ;; ----
