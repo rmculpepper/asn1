@@ -56,7 +56,7 @@
 
 (define-nt ReservedWORD
   ;; Don't allow type names and value names as syntax literals
-  [(ABSENT) 'ABSENT] [(ABSTRACT-SYNTAX) 'ABSTRACT-SYNTAX] [(ALL) 'ALL]
+  [(ABSENT) 'ABSENT] #;[(ABSTRACT-SYNTAX) 'ABSTRACT-SYNTAX] [(ALL) 'ALL]
   [(APPLICATION) 'APPLICATION] [(AUTOMATIC) 'AUTOMATIC]
   [(BEGIN) 'BEGIN] [(BIT) 'BIT] #;[(BOOLEAN) 'BOOLEAN] [(BY) 'BY]
   [(CHARACTER) 'CHARACTER] [(CHOICE) 'CHOICE] [(CLASS) 'CLASS] [(COMPONENT) 'COMPONENT]
@@ -78,7 +78,7 @@
   #;[(REAL) 'REAL] #;[(RELATIVE-OID) 'RELATIVE-OID]
   [(SEQUENCE) 'SEQUENCE] [(SET) 'SET] [(SIZE) 'SIZE] [(STRING) 'STRING] [(SYNTAX) 'SYNTAX]
   [(TAGS) 'TAGS] #;[(TRUE) 'TRUE]
-  [(TYPE-IDENTIFIER) 'TYPE-IDENTIFIER]
+  #;[(TYPE-IDENTIFIER) 'TYPE-IDENTIFIER]
   [(UNION) 'UNION] [(UNIQUE) 'UNIQUE] [(UNIVERSAL) 'UNIVERSAL]
   [(WITH) 'WITH]
 
@@ -228,11 +228,7 @@
   [([id Identifier] [ty Type+DefinedObjectClass] ASSIGN [val Value+Object])
    ;; ValueReference Type ASSIGN Value
    ;; ObjectReference DefinedObjectClass ASSIGN Object
-   (cond [(and (equal? ty (type 'OBJECT-IDENTIFIER))
-               (or (value:seq/set? val) (object:sugar? val)))
-          (action:reject)]
-         [else
-          (assign:id id null ty val)])]
+   (assign:id id null ty val)]
   [(Word Type+DefinedObjectClass ASSIGN ValueSet+ObjectSet)
    ;; TypeReference Type ASSIGN ValueSet
    ;; ObjectSetReference DefinedObjectClass ASSIGN ObjectSet
@@ -271,7 +267,13 @@
   ;; DefaultSyntax
   [(LBRACE FieldSetting* RBRACE) (object:defn $2)]
   ;; DefinedSyntax -- overlaps, but not subset of Value
-  [(LBRACE DefinedSyntaxToken* RBRACE) (object:sugar $2)])
+  [(LBRACE DefinedSyntaxToken* RBRACE)
+   ;; Disambiguate: assume that a DefinedSyntax notation must include
+   ;; at least one all-caps literal symbol. FIXME: maybe better to
+   ;; just check for overlap with reloid and set/seq notation?
+   (define (WORD? v) (and (symbol? v) (not (regexp-match? #rx"[a-z]" (symbol->string v)))))
+   (cond [(ormap WORD? $2) (object:sugar $2)]
+         [else (action:reject)])])
 
 (define-nt Type+ValueSet+ObjectSet
   [(Type) $1]
@@ -751,15 +753,25 @@
 
 (define-nt* DefinedSyntaxToken* DefinedSyntaxToken #:post [])
 
+;; (define-nt DefinedSyntaxToken
+;;   [([s Setting])
+;;    (match s
+;;      [(? symbol? (not (app symbol->string (regexp "[a-z]"))))
+;;       (action:reject)]
+;;      [(value 'NULL) ;; also gets parsed as (type 'NULL)
+;;       (action:reject)]
+;;      [_ s])]
+;;   [(Literal) $1])
+
 (define-nt DefinedSyntaxToken
   [([s Setting])
    (match s
-     [(? symbol? (not (app symbol->string (regexp "[a-z]"))))
-      (action:reject)]
      [(value 'NULL) ;; also gets parsed as (type 'NULL)
       (action:reject)]
      [_ s])]
-  [(Literal) $1])
+  ;; Literal overlaps with Setting on word-caps < Word < TypeRef
+  [(ReservedWORD) (sugar:literal $1)]
+  [(COMMA) (sugar:literal #\,)])
 
 ;; 15.5 Value sets and information object sets (pdf 357)
 
@@ -850,7 +862,7 @@
   [(Type+DefinedObjectClass) $1])
 
 (define-nt ActualParameterList
-  [(LBRACE ActualParameter+ RBRACE) $2])
+  [(LBRACE ActualParameter+ RBRACE) (action:collect $2)])
 
 (define-nt+ ActualParameter+ ActualParameter #:sep [COMMA])
 
@@ -899,6 +911,124 @@
 
 ;; ============================================================
 
+;; type-env : Parameter of Hash[Symbol => 
+(define type-env
+  (make-parameter
+   (for/hash ([e (in-list prelude-h)])
+     (match e
+       [(list name 'type) (values name (cons 'type (type name)))]
+       [(list name 'class) (values name (cons 'class (class:defn null null)))]))))
+
+(define (env-add! name kind rhs)
+  (when (memq kind '(type class))
+    (eprintf "!! adding ~s : ~s\n" name kind))
+  (type-env (hash-set (type-env) name (cons kind rhs))))
+
+(define (detect-term-kind v) ;; => 'type, 'class, 'value-set, 'object-set, 'value, #f
+  (match v
+    [(? symbol? name) (car (hash-ref (type-env) name '(#f)))]
+    ;; Types
+    [(type:bit-string named) 'type]
+    [(type name) 'type]
+    [(type:choice alts) 'type]
+    [(type:enum names) 'type]
+    [(type:integer names) 'type]
+    [(type:sequence fields) 'type]
+    [(type:set fields) 'type]
+    [(type:set-of type size-c) 'type]
+    [(type:sequence-of type size-c) 'type]
+    [(type:string subtype) 'type]
+    [(type:tagged tag mode type) 'type]
+    [(type:constrained type constraint) 'type]
+    [(type:any-defined-by id) 'type]
+    [(type:from-object object field) 'type]
+    [(type:from-class class field) 'type]
+    [(type:instance-of oid) 'type]
+    [(type:select id type) 'type]
+    ;; Classes
+    [(class:defn components stx) 'class]
+    ;; Object
+    [(object:sugar _) 'object]
+    [(object:defn _) 'object]
+    ;; Unknown
+    [_ #f]))
+
+(define (eval-classifier v)
+  (match v
+    [(? symbol? name)
+     (match (hash-ref (type-env) v #f)
+       [(cons 'type rhs) (eval-classifier rhs)]
+       [(cons 'class rhs) (eval-classifier rhs)]
+       [_ #f])]
+    [(type:tagged _ _ ty) (eval-classifier ty)]
+    [(type:constrained ty _) (eval-classifier ty)]
+    [term
+     (match (detect-term-kind term)
+       ['type (cons 'type term)]
+       ['class (cons 'class term)]
+       [_ #f])]))
+
+(define (process-definition def)
+  ;;(eprintf "processing ~e\n" def)
+  (match def
+    [(assign:word name params rhs)
+     (case (detect-term-kind rhs)
+       [(type) (env-add! name 'type rhs)]
+       [(class) (env-add! name 'class rhs)])]
+    [(assign:id name params kind rhs)
+     (case (detect-term-kind kind)
+       [(type) (env-add! name 'value #f)]
+       [(class) (env-add! name 'object #f)])]
+    [(assign:x-set name params kind rhs)
+     (case (detect-term-kind kind)
+       [(type) (env-add! name 'value-set #f)]
+       [(class) (env-add! name 'object-set #f)])]
+    [_ (void)]))
+
+(define (ok-definition? def)
+  ;; Reject obvious type errors to disambiguate.
+  (match def
+    [(assign:id name params kind rhs)
+     (match (eval-classifier kind)
+       [(cons 'type ty) (ok-value? rhs ty)]
+       [(cons 'class c) (ok-object? rhs c)]
+       [#f #t])]
+    [(assign:x-set name params kind rhs)
+     (match (eval-classifier kind)
+       [(cons 'type ty) (ok-value-set? rhs ty)]
+       [(cons 'class c) (ok-object-set? rhs c)]
+       [#f #t])]
+    [(assign:word name params rhs) #t]
+    [#f #f]))
+
+(define (ok-value? v ty)
+  (and
+   (memq (detect-term-kind v) '(value #f)) ;; eg, NULL value vs type
+   (match ty
+     [(or (type 'OBJECT-IDENTIFIER) (type 'RELATIVE-OID))
+      (match v
+        [(or (? value:seq/set?) (? value:seq/set-of?)) #f]
+        [_ #t])]
+     [(or (? type:sequence?) (? type:set?))
+      (match v
+        [(or (? value:oid/reloid?)) #f]
+        [_ #t])]
+     [(or (? type:sequence-of?) (? type:set-of?))
+      (match v
+        [(or (? value:oid/reloid?)) #f]
+        [_ #t])]
+     [_ #t])))
+
+(define (ok-object? v c)
+  (and (memq (detect-term-kind v) '(object #f))))
+
+(define (ok-value-set? v ty)
+  (and (memq (detect-term-kind v) '(value-set x-set #f))))
+(define (ok-object-set? v ty)
+  (and (memq (detect-term-kind v) '(object-set x-set #f))))
+
+;; ============================================================
+
 (module+ main
   (require racket/pretty
            racket/list
@@ -918,10 +1048,15 @@
          (let loop ()
            (define rs (send asn1-assignment-parser parse* (asn1-lexer in)))
            (define rs* (remove-duplicates rs))
-           (printf "\n-- ~s => ~s --\n" (length rs) (length rs*))
-           (unless (= (length rs*) 1)
+           (define drs (filter (match-lambda [(token _ v) (ok-definition? v)]) rs*))
+           (printf "\n-- ~s => ~s => ~s --\n" (length rs) (length rs*) (length drs))
+           (match drs
+             [(list (token 'AssignmentOrEnd defn))
+              (process-definition defn)]
+             [_ (void)])
+           (when (> (length drs) 1)
              (printf "Ready?")
              (void (read-line)))
-           (pretty-print rs*)
-           (unless (for/and ([r (in-list rs)]) (eq? (token-value r) #f))
+           (pretty-print drs)
+           (unless (for/and ([r (in-list rs*)]) (eq? (token-value r) #f))
              (loop))))))))
