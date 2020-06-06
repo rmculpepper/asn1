@@ -1,4 +1,5 @@
 #lang racket/base
+(require racket/match)
 (provide (all-defined-out))
 
 ;; ------------------------------------------------------------
@@ -53,7 +54,7 @@
 ;; Types
 
 ;; BuiltinType =
-;; | (type Symbol)
+;; | (type Symbol)  -- built-in type
 ;; | (type:bit-string NamedValues)
 ;; | (type:choice Alternatives)
 ;; | (type:enum NamedValues)
@@ -258,7 +259,6 @@
 (struct opt:optional (thing) #:prefab)
 (struct opt:default (thing default) #:prefab)
 
-
 ;; References
 
 (struct ref:dot (modref ref) #:prefab)
@@ -268,14 +268,6 @@
 (struct assign:word (name params rhs) #:prefab)
 (struct assign:id (name params kind rhs) #:prefab)
 (struct assign:x-set (name params kind rhs) #:prefab)
-
-
-(struct assign:type (name params type) #:prefab)
-(struct assign:value (name params type value) #:prefab)
-(struct assign:value-set (name params type value-set) #:prefab)
-(struct assign:class (name params class) #:prefab)
-(struct assign:object (name params class object) #:prefab)
-(struct assign:object-set (name params class object-set) #:prefab)
 
 ;; Types
 
@@ -335,7 +327,7 @@
 ;; Classes
 
 (struct class:defn (components stx) #:prefab)
-(struct class:type-identifier () #:prefab)
+(struct class:primitive (name) #:prefab)
 
 (struct object:from-object (object field) #:prefab)
 (struct object-set:from-object (object field) #:prefab)
@@ -350,9 +342,6 @@
 
 (struct object-set:defn (elems) #:prefab)
 
-(struct field:&word (ref kind opt) #:prefab)
-(struct field:&id (ref kind opt) #:prefab)
-
 (struct field:type (ref opt) #:prefab)
 (struct field:value/fixed-type (ref type unique opt) #:prefab)
 (struct field:value/var-type (ref type opt) #:prefab)
@@ -361,7 +350,108 @@
 (struct field:object (ref class opt) #:prefab)
 (struct field:object-set (ref class opt) #:prefab)
 
+(struct field:&word (ref kind opt) #:prefab)
+(struct field:&id (ref kind opt) #:prefab)
+
 ;; ----------------------------------------
 (define fixme vector)
 
 (struct ambiguous (vs) #:prefab)
+
+;; ============================================================
+
+;; ast-kind : Any -> (U 'type 'class 'value 'value-set 'object, 'object-set 'x-set #f)
+(define (ast-kind v)
+  (match v
+    ;; Types
+    [(type name) 'type]
+    [(type:bit-string named) 'type]
+    [(type:choice alts) 'type]
+    [(type:enum names) 'type]
+    [(type:integer names) 'type]
+    [(type:sequence fields) 'type]
+    [(type:set fields) 'type]
+    [(type:set-of type size-c) 'type]
+    [(type:sequence-of type size-c) 'type]
+    [(type:string subtype) 'type]
+    [(type:tagged tag mode type) 'type]
+    [(type:constrained type constraint) 'type]
+    [(type:any-defined-by id) 'type]
+    [(type:from-object object field) 'type]
+    [(type:from-class class field) 'type]
+    [(type:instance-of oid) 'type]
+    [(type:select id type) 'type]
+    ;; Values
+    [(value v) 'value]
+    [(value:bstring s) 'value]
+    [(value:hstring s) 'value]
+    [(value:bit-list bits) 'value]
+    [(value:oid/reloid components) 'value]
+    [(value:choice name value) 'value]
+    [(value:seq/set-of values) 'value]
+    [(value:seq/set values) 'value]
+    [(value:from-object object field) 'value]
+    [(value:annotated type value) 'value]
+    ;; Value sets
+    [(value-set:defn values) 'value-set]
+    [(value-set:from-object object field) 'value-set]
+    ;; Classes
+    [(class:defn components stx) 'class]
+    [(class:primitive name) 'class]
+    ;; Objects
+    [(object:defn decls) 'object]
+    [(object:sugar things) 'object]
+    [(object:from-object object field) 'object]
+    ;; Object sets
+    [(object-set:defn elems) 'object-set]
+    [(object-set:from-object object field) 'object-set]
+    ;; Unknown
+    [(x-set:defn members) 'x-set]
+    [_ #f]))
+
+
+;; ============================================================
+;; Prelude
+
+(define prelude-h
+  '(;; UsefulObjectClassReference
+    (TYPE-IDENTIFIER    class)
+    (ABSTRACT-SYNTAX    class)
+    ;; CharacterStringType
+    (BMPString          type)
+    (GeneralString      type)
+    (GraphicString      type)
+    (IA5String          type)
+    (ISO646String       type)
+    (NumericString      type)
+    (PrintableString    type)
+    (TeletexString      type)
+    (T61String          type)
+    (UniversalString    type)
+    (UTF8String         type)
+    (VideotexString     type)
+    (VisibleString      type)
+    ;; UsefulType
+    (GeneralizedTime    type)
+    (UTCTime            type)
+    (ObjectDescriptor   type)
+    ))
+
+
+;; ============================================================
+;; Post-disambiguation
+
+(struct expr:fun (params body) #:prefab)
+
+(define (maybe-fun params body)
+  (if (pair? params) (expr:fun params body) body))
+
+(struct assign:type (name type) #:prefab)
+(struct assign:value (name type value) #:prefab)
+(struct assign:value-set (name type value-set) #:prefab)
+(struct assign:class (name class) #:prefab)
+(struct assign:object (name class object) #:prefab)
+(struct assign:object-set (name class object-set) #:prefab)
+
+(struct value-set:one (elem) #:prefab)
+(struct object-set:one (elem) #:prefab)

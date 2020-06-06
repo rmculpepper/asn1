@@ -6,6 +6,7 @@
          "gparser-util.rkt"
          "glexer.rkt"
          "ast2.rkt")
+(provide (all-defined-out))
 
 (define-nt-definers define-nt define-asn1-grammar)
 
@@ -31,30 +32,6 @@
 (define-nt ValueSetFieldReference [(&Word) $1])
 (define-nt ObjectFieldReference [(&Identifier) $1])
 (define-nt ObjectSetFieldReference [(&Word) $1])
-
-(define prelude-h
-  '(;; UsefulObjectClassReference
-    (TYPE-IDENTIFIER    class)
-    (ABSTRACT-SYNTAX    class)
-    ;; CharacterStringType
-    (BMPString          type)
-    (GeneralString      type)
-    (GraphicString      type)
-    (IA5String          type)
-    (ISO646String       type)
-    (NumericString      type)
-    (PrintableString    type)
-    (TeletexString      type)
-    (T61String          type)
-    (UniversalString    type)
-    (UTF8String         type)
-    (VideotexString     type)
-    (VisibleString      type)
-    ;; UsefulType
-    (GeneralizedTime    type)
-    (UTCTime            type)
-    (ObjectDescriptor   type)
-    ))
 
 (define-nt ReservedWORD
   ;; Don't allow type names and value names as syntax literals
@@ -912,122 +889,6 @@
 
 ;; ============================================================
 
-;; type-env : Parameter of Hash[Symbol => 
-(define type-env
-  (make-parameter
-   (for/hash ([e (in-list prelude-h)])
-     (match e
-       [(list name 'type) (values name (cons 'type (type name)))]
-       [(list name 'class) (values name (cons 'class (class:defn null null)))]))))
-
-(define (env-add! name kind rhs)
-  (when (memq kind '(type class))
-    (eprintf "!! adding ~s : ~s\n" name kind))
-  (type-env (hash-set (type-env) name (cons kind rhs))))
-
-(define (detect-term-kind v) ;; => 'type, 'class, 'value-set, 'object-set, 'value, #f
-  (match v
-    [(? symbol? name) (car (hash-ref (type-env) name '(#f)))]
-    ;; Types
-    [(type:bit-string named) 'type]
-    [(type name) 'type]
-    [(type:choice alts) 'type]
-    [(type:enum names) 'type]
-    [(type:integer names) 'type]
-    [(type:sequence fields) 'type]
-    [(type:set fields) 'type]
-    [(type:set-of type size-c) 'type]
-    [(type:sequence-of type size-c) 'type]
-    [(type:string subtype) 'type]
-    [(type:tagged tag mode type) 'type]
-    [(type:constrained type constraint) 'type]
-    [(type:any-defined-by id) 'type]
-    [(type:from-object object field) 'type]
-    [(type:from-class class field) 'type]
-    [(type:instance-of oid) 'type]
-    [(type:select id type) 'type]
-    ;; Classes
-    [(class:defn components stx) 'class]
-    ;; Object
-    [(object:sugar _) 'object]
-    [(object:defn _) 'object]
-    ;; Unknown
-    [_ #f]))
-
-(define (eval-classifier v)
-  (match v
-    [(? symbol? name)
-     (match (hash-ref (type-env) v #f)
-       [(cons 'type rhs) (eval-classifier rhs)]
-       [(cons 'class rhs) (eval-classifier rhs)]
-       [_ #f])]
-    [(type:tagged _ _ ty) (eval-classifier ty)]
-    [(type:constrained ty _) (eval-classifier ty)]
-    [term
-     (match (detect-term-kind term)
-       ['type (cons 'type term)]
-       ['class (cons 'class term)]
-       [_ #f])]))
-
-(define (process-definition def)
-  ;;(eprintf "processing ~e\n" def)
-  (match def
-    [(assign:word name params rhs)
-     (case (detect-term-kind rhs)
-       [(type) (env-add! name 'type rhs)]
-       [(class) (env-add! name 'class rhs)])]
-    [(assign:id name params kind rhs)
-     (case (detect-term-kind kind)
-       [(type) (env-add! name 'value #f)]
-       [(class) (env-add! name 'object #f)])]
-    [(assign:x-set name params kind rhs)
-     (case (detect-term-kind kind)
-       [(type) (env-add! name 'value-set #f)]
-       [(class) (env-add! name 'object-set #f)])]
-    [_ (void)]))
-
-(define (ok-definition? def)
-  ;; Reject obvious type errors to disambiguate.
-  (match def
-    [(assign:id name params kind rhs)
-     (match (eval-classifier kind)
-       [(cons 'type ty) (ok-value? rhs ty)]
-       [(cons 'class c) (ok-object? rhs c)]
-       [#f #t])]
-    [(assign:x-set name params kind rhs)
-     (match (eval-classifier kind)
-       [(cons 'type ty) (ok-value-set? rhs ty)]
-       [(cons 'class c) (ok-object-set? rhs c)]
-       [#f #t])]
-    [(assign:word name params rhs) #t]
-    [#f #f]))
-
-(define (ok-value? v ty)
-  (and
-   (memq (detect-term-kind v) '(value #f)) ;; eg, NULL value vs type
-   (match ty
-     [(or (type 'OBJECT-IDENTIFIER) (type 'RELATIVE-OID))
-      (match v
-        [(or (? value:seq/set?) (? value:seq/set-of?)) #f]
-        [_ #t])]
-     [(or (? type:sequence?) (? type:set?))
-      (match v
-        [(or (? value:oid/reloid?)) #f]
-        [_ #t])]
-     [(or (? type:sequence-of?) (? type:set-of?))
-      (match v
-        [(or (? value:oid/reloid?)) #f]
-        [_ #t])]
-     [_ #t])))
-
-(define (ok-object? v c)
-  (and (memq (detect-term-kind v) '(object #f))))
-
-(define (ok-value-set? v ty)
-  (and (memq (detect-term-kind v) '(value-set x-set #f))))
-(define (ok-object-set? v ty)
-  (and (memq (detect-term-kind v) '(object-set x-set #f))))
-
 (define (simplify-collect-boxes v)
   (define (simplify v)
     (cond [(collect-box? v)
@@ -1038,8 +899,6 @@
                  [else (ambiguous subvs)])]
           [else v]))
   (tree-transform v simplify))
-
-;; ============================================================
 
 (module+ main
   (require racket/pretty
