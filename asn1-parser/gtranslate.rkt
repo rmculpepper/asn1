@@ -87,6 +87,10 @@
     [t (cond [(eq? (ast-kind t) 'type) t] [else #f])]))
 
 (define (tc-definition def)
+  (with-handlers ([tcfail? (lambda (e) (ambiguous (list def)))])
+    (tc-definition* def)))
+
+(define (tc-definition* def)
   ;;(eprintf "processing ~e\n" def)
   (match def
     [(assign:word name params rhs)
@@ -99,7 +103,7 @@
         (define ast (maybe-fun params rhs))
         (env-add! name 'class ast)
         (assign:class name ast)]
-       [_ (error 'tc-definition "failed: ~e" def)])]
+       [_ (fail 'def 'word def)])]
     [(assign:id name params kind rhs)
      (match (ast-kind* kind)
        ['type
@@ -110,7 +114,7 @@
         (define ast (tc-object kind (maybe-fun params rhs)))
         (env-add! name 'object ast)
         (assign:object name kind ast)]
-       [_ (ambiguous (list def))])]
+       [_ (fail 'def 'id def)])]
     [(assign:x-set name params kind rhs)
      (match (ast-kind* kind)
        ['type
@@ -121,7 +125,7 @@
         (define ast (tc-object-set kind (maybe-fun params rhs)))
         (env-add! name 'object-set ast)
         (assign:object-set name kind ast)]
-       [_ (error 'tc-definition "failed: ~e" def)])]
+       [_ (fail 'def 'x-set def)])]
     [#f #f]))
 
 (define ((tc-value t) v)
@@ -197,6 +201,7 @@
 (define (tc-element-set kind t es)
   (let loop ([es es])
     (match es
+      [(? null?) null]
       [(constraint:or es1 es2)
        (constraint:or (loop es1) (loop es2))]
       [(constraint:and es1 es2)
@@ -813,6 +818,10 @@
         [(list (token 'AssignmentOrEnd #f))
          null]
         [(list (token 'AssignmentOrEnd def))
+         (when #t
+           (printf "type-checking and disambiguating:\n")
+           (pretty-print def)
+           (printf "=>\n"))
          (define ddef (tc-definition def))
          (pretty-print ddef)
          (cons ddef (loop))]
@@ -825,9 +834,13 @@
     (for/list ([def (in-list defs)])
       (match def
         [(ambiguous (list def))
-         ;;(printf "disambiguating ~e\n" def)
+         (when #t
+           (printf "disambiguating:\n")
+           (pretty-print def)
+           (printf "=>\n"))
          (define ddef (tc-definition def))
-         (cond [(ambiguous? ddef) (error 'pass2 "ambiguous: ~e" def)]
+         (cond [(ambiguous? ddef)
+                (printf "!! still ambiguous !!\n")]
                [else (pretty-print ddef)])
          ddef]
         [def def])))
@@ -844,8 +857,9 @@
          (pretty-print
           (send asn1-module-header-parser parse* (asn1-lexer in)))
          (define defs (read-definitions in))
-         (eprintf "-- PASS 2 --\n")
-         (pass2 defs)
+         (for/fold ([defs defs]) ([i (in-range 10)] #:when (ormap ambiguous? defs))
+           (eprintf "-- PASS 2(~s) --\n" i)
+           (pass2 defs))
          (void))))))
 
 
