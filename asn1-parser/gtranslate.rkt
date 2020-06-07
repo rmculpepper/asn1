@@ -144,58 +144,49 @@
 ;; ============================================================
 ;; Translation
 
+(define show-type? (make-parameter #f))
 (define current-fixme-mode (make-parameter 'comment))
+
 (define current-tag-mode (make-parameter #f))
 
 (define (decl-of-module m)
   (match m
     [(mod:defn id tagmode extmode exports imports assignments)
      ;; FIXME: id, tagmode, extmode, exports, imports
-     (define env (env-of-assignments assignments))
-     (parameterize ((current-env env)
-                    (current-tag-mode
+     (parameterize ((current-tag-mode
                      (case tagmode
                        [(implicit) 'implicit]
                        [(automatic) 'automatic]
                        [(explicit #f) 'explicit])))
        (decl-of-assignments assignments))]))
 
-(define (env-of-assignments assignments)
-  (for/fold ([env #hash()]) ([assignment (in-list assignments)])
-    (match assignment
-      [(assign:class name params class) (hash-set env name assignment)]
-      [_ env])))
-
 (define (decl-of-assignments assignments)
   (cons 'begin (map decl-of-assignment assignments)))
 
 (define (decl-of-assignment a)
-  (define (header-of name params)
-    (cond [(null? params) name]
-          [else (cons name (map formal-of params))]))
   (define (do-begin a bs) (if (null? bs) a `(begin ,a ,@bs)))
   (match a
-    [(assign:type name params type)
+    [(assign:type name type)
      (do-begin
-      `(define ,(header-of name params) ,(expr-of type))
+      `(define ,name ,(expr-of type))
       (decls-for-type type))]
-    [(assign:value name params type value)
-     `(define ,(header-of name params)
-        ,@(comments (format "~s" (expr-of type)))
+    [(assign:value name type value)
+     `(define ,name
+        ,@(if (show-type?) (comments (format "~s" (expr-of type))) null)
         ,(expr-of value))]
-    [(assign:value-set name params type value-set)
-     `(define ,(header-of name params)
-        ,@(comments (format "~s" (expr-of type)))
+    [(assign:value-set name type value-set)
+     `(define ,name
+        ,@(if (show-type?) (comments (format "~s" (expr-of type))) null)
         ,(expr-of value-set))]
-    [(assign:class name params class)
-     `(define ,(header-of name params) ,(expr-of class))]
-    [(assign:object name params class object)
-     `(define ,(header-of name params)
-        ,@(comments (format "~s" (expr-of class)))
+    [(assign:class name class)
+     `(define ,name ,(expr-of class))]
+    [(assign:object name class object)
+     `(define ,name
+        ,@(if (show-type?) (comments (format "~s" (expr-of class))) null)
         ,(expr-of object #:class class))]
-    [(assign:object-set name params class object-set)
-     `(define ,(header-of name params)
-        ,@(comments (format "~s" (expr-of class)))
+    [(assign:object-set name class object-set)
+     `(define ,name
+        ,@(if (show-type?) (comments (format "~s" (expr-of class))) null)
         ,(expr-of object-set #:class class))]))
 
 (define (formal-of p)
@@ -273,13 +264,13 @@
         `(OID ,@(map sexpr-of-oid-component cs))]
        [cs
         `(list ,@(map expr-of-oid-component cs))])]
-    [(value:seq/set-of values)
-     `(list ,@(for/list ([value (in-list values)]) (expr-of value)))]
-    [(value:seq/set values)
+    [(value:seq/set-of vals)
+     `(list ,@(for/list ([val (in-list vals)]) (expr-of val)))]
+    [(value:seq/set vals)
      `(hasheq ,@(append* (map (match-lambda
                                 [(ast:named name value)
                                  (list `(quote ,name) (expr-of value))])
-                              values)))]
+                              vals)))]
     [(value:from-object object field) (do-field-ref object field)]
 
     ;; ----------------------------------------
@@ -301,8 +292,7 @@
     #;[(ref:class name) name]
     [(class:defn fields _)
      `(ObjectClass ,@(map sexpr-of-class-field fields))]
-    [(class:type-identifier)
-     `TYPE-IDENTIFIER]
+    [(class:primitive name) name]
 
     ;; ----------------------------------------
     ;; OBJECT
@@ -323,6 +313,8 @@
          [(constraint:or objs1 objs2)
           (make-append (loop objs1) (loop objs2))]
          [(constraint:single-value obj)
+          `(list ,(expr-of obj #:class class))]
+         [(object-set:one obj)
           `(list ,(expr-of obj #:class class))]
          [(? word? name) name]
          [(? id? name) `(list ,name)]
@@ -364,12 +356,14 @@
      (string->symbol (format "~s.~s" modref ref))]
     [(expr:apply thing args)
      `(,(expr-of thing) ,@(map expr-of args))]
+    [(expr:fun params thing)
+     `(lambda ,(map formal-of params) ,(expr-of thing))]
 
     ;; ----------------------------------------
     [_ `(FIXME '(expr ,x))]))
 
 (define (do-field-ref obj field)
-  `(object-ref ,(expr-of obj) ',(append (car field) (list (cdr field)))))
+  `(object-ref ,(expr-of obj) ',field))
 
 (define (decls-for-type t)
   (define (make-def x)
@@ -461,18 +455,18 @@
 ;; ============================================================
 
 (module+ main
-  (require racket/pretty
-           racket/cmdline
-           racket/class
-           grrparse
-           "glexer.rkt"
-           "ggramar2.rkt")
-
+  (require racket/cmdline
+           racket/pretty
+           "ggramar2.rkt"
+           "typecheck.rkt")
   (command-line
-   #:once-any
    #:args files
    (for ([file files])
      (call-with-input-file* file
        (lambda (in)
          (port-count-lines! in)
-         (void))))))
+         (define header (read-module-header in))
+         (define defs0 (read-assignments in))
+         (define mod (typecheck header defs0))
+         (parameterize ((pretty-print-columns 80))
+           (pretty-print (decl-of-module mod))))))))

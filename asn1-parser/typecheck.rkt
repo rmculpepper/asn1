@@ -4,6 +4,7 @@
          racket/pretty
          "ast2.rkt"
          "tree-util.rkt")
+(provide (all-defined-out))
 
 ;; Other ideas
 ;; - topological sort definitions by dependence?
@@ -39,7 +40,7 @@
 (define env (make-parameter base-env))
 
 (define (env-add! name kind rhs)
-  (when (memq kind '(type class))
+  (when #f #;(memq kind '(type class))
     (eprintf "!! adding ~s : ~s\n" name kind))
   (env (hash-set (env) name (cons kind rhs))))
 
@@ -118,7 +119,7 @@
 
 (define (tc-definition def)
   (with-handlers ([tcfail? (lambda (e)
-                             (eprintf "FAILED: ~e\n" e)
+                             #;(eprintf "FAILED: ~e\n" e)
                              (ambiguous (list def)))])
     (tc-definition* def)))
 
@@ -243,7 +244,7 @@
   (match-define (ast:named name value) nv)
   (define check-thing (lookup-field name cs))
   (unless check-thing (fail 'class-component cs nv))
-  (check-thing value))
+  (ast:named name (check-thing value)))
 
 (define (lookup-field name cs)
   (for/or ([c (in-list cs)])
@@ -260,7 +261,7 @@
 (define ((tc-component components) nv)
   (match-define (ast:named name v) nv)
   (define type (lookup-named name components))
-  ((tc-value type) v))
+  (ast:named name ((tc-value type) v)))
 
 (define ((tc-value-set t) v)
   (match v
