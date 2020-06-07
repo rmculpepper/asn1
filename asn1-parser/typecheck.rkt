@@ -448,6 +448,7 @@
 (define (do-tagging-mode/indep mode ast)
   (define (handle-type t)
     (match t
+      ;; FIXME: also applies to type:tagged???
       [(type:sequence cs) (type:sequence (map handle-component cs))]
       [(type:set cs) (type:set (map handle-component cs))]
       [(type:choice alts) (type:choice (map handle-alternative alts))]

@@ -142,18 +142,10 @@
 (define show-type? (make-parameter #f))
 (define current-fixme-mode (make-parameter 'comment))
 
-(define current-tag-mode (make-parameter #f))
-
 (define (decl-of-module m)
   (match m
     [(mod:defn id tagmode extmode exports imports assignments)
-     ;; FIXME: id, tagmode, extmode, exports, imports
-     (parameterize ((current-tag-mode
-                     (case tagmode
-                       [(implicit) 'implicit]
-                       [(automatic) 'automatic]
-                       [(explicit #f) 'explicit])))
-       (decl-of-assignments assignments))]))
+     (decl-of-assignments assignments)]))
 
 (define (decl-of-assignments assignments)
   (cons 'begin (map decl-of-assignment assignments)))
@@ -208,22 +200,17 @@
                   `(SET-OF ,(expr-of type)))]
     [(type:string subtype) subtype]
     [(type:tagged (tag tagclass tagnum) mode type)
-     (begin/fixme
-       (and (not mode) (not (eq? (current-tag-mode) 'explicit)) "check tag mode")
-       `(TAG ,(match tagclass
-                ['universal '#:universal]
-                ['application '#:application]
-                ['context-sensitive '#:context-sensitive]
-                ['private '#:private])
-             ,@(match mode
-                 ['implicit '(#:implicit)]
-                 ['explicit '(#:explicit)]
-                 [#f (case (current-tag-mode)
-                       [(explicit) '(#:explicit)]
-                       [(implicit) '(#:implicit)] ;; FIXME, not for open types
-                       [(automatic) '(#:FIXME)])])
-             ,tagnum
-             ,(expr-of type)))]
+     `(TAG ,(match tagclass
+              ['universal '#:universal]
+              ['application '#:application]
+              ['context-sensitive '#:context-sensitive]
+              ['private '#:private])
+           ,@(match mode
+               ['implicit '(#:implicit)]
+               ['explicit '(#:explicit)]
+               [#f '(#:explicit)])
+           ,tagnum
+           ,(expr-of type))]
     ;; ----
     [(type:constrained (type:from-class class fields) (constraint:table objset ats))
      `(object-set-ref ,(expr-of class) ,(expr-of objset) (quote ,fields)
