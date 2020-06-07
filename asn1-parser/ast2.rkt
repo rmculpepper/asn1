@@ -337,8 +337,6 @@
 
 (struct sugar:optional (things) #:prefab)
 (struct sugar:literal (word) #:prefab)
-(struct sugar:comma () #:prefab)
-(struct sugar:reserved (word) #:prefab)
 
 (struct object-set:defn (elems) #:prefab)
 
@@ -413,30 +411,45 @@
 ;; ============================================================
 ;; Prelude
 
-(define prelude-h
-  '(;; UsefulObjectClassReference
-    (TYPE-IDENTIFIER    class)
-    (ABSTRACT-SYNTAX    class)
-    ;; CharacterStringType
-    (BMPString          type)
-    (GeneralString      type)
-    (GraphicString      type)
-    (IA5String          type)
-    (ISO646String       type)
-    (NumericString      type)
-    (PrintableString    type)
-    (TeletexString      type)
-    (T61String          type)
-    (UniversalString    type)
-    (UTF8String         type)
-    (VideotexString     type)
-    (VisibleString      type)
+(define standard-types
+  '(;; CharacterStringType
+    BMPString
+    GeneralString
+    GraphicString
+    IA5String
+    ISO646String
+    NumericString
+    PrintableString
+    TeletexString
+    T61String
+    UniversalString
+    UTF8String
+    VideotexString
+    VisibleString
     ;; UsefulType
-    (GeneralizedTime    type)
-    (UTCTime            type)
-    (ObjectDescriptor   type)
+    GeneralizedTime
+    UTCTime
+    ObjectDescriptor
     ))
 
+(define standard-classes
+  (hasheq 'TYPE-IDENTIFIER
+          (class:defn
+           (list (field:value/fixed-type '&id (type 'OBJECT-IDENTIFIER) 'unique #f)
+                 (field:type '&Type #f))
+           `(&Type IDENTIFIED BY &id))
+          'ABSTRACT-SYNTAX
+          (class:defn
+           (list (field:value/fixed-type '&id (type 'OBJECT-IDENTIFIER) #f #f)
+                 (field:type '&Type #f)
+                 (field:value/fixed-type '&property (type:bit-string null) #f #f))
+           `(&Type IDENTIFIED BY &id ,(sugar:optional `(HAS PROPERTY &property))))))
+
+(define base-env
+  (let ([env (for/fold ([env (hasheq)]) ([(name def) (in-hash standard-classes)])
+               (hash-set env name (cons 'class def)))])
+    (for/fold ([env env]) ([name (in-list standard-types)])
+      (hash-set env name (cons 'type (type name))))))
 
 ;; ============================================================
 ;; Post-disambiguation

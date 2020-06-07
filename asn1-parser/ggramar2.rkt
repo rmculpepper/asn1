@@ -735,21 +735,21 @@
   [(LBRACKET TokenOrGroupSpec+ RBRACKET) (sugar:optional $2)])
 
 (define-nt Literal
-  [(word-caps) (sugar:literal $1)]
-  [(ReservedWORD) (sugar:literal $1)]
-  [(COMMA) (sugar:literal #\,)])
+  [(word-caps) $1]
+  [(ReservedWORD) $1]
+  [(COMMA) #\,])
 
 (define-nt* DefinedSyntaxToken* DefinedSyntaxToken #:post [])
 
 (define-nt DefinedSyntaxToken
   [([s Setting])
    (match s
-     [(value 'NULL) ;; also gets parsed as (type 'NULL)
+     #;[(value 'NULL) ;; also gets parsed as (type 'NULL)
       (action:reject)]
      [_ s])]
   ;; Literal overlaps with Setting on word-caps < Word < TypeRef
-  [(ReservedWORD) (sugar:literal $1)]
-  [(COMMA) (sugar:literal #\,)])
+  [(ReservedWORD) $1]
+  [(COMMA) #\,])
 
 ;; 15.5 Value sets and information object sets (pdf 357)
 
