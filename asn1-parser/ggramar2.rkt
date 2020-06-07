@@ -900,6 +900,22 @@
           [else v]))
   (tree-transform v simplify))
 
+(define (simplify-parses rs)
+  (match (remove-duplicates (map simplify-collect-boxes rs))
+    [(list r) (token-value r)]
+    [rs (ambiguous (map token-value rs))]))
+
+(define (read-module-header in)
+  (simplify-parses (send asn1-module-header-parser parse* (asn1-lexer in))))
+
+(define (read-assignment in)
+  (define rs (send asn1-assignment-parser parse* (asn1-lexer in)))
+  (and (ormap token-value rs) (simplify-parses rs)))
+
+(define (read-assignments in)
+  (define def (read-assignment in))
+  (if def (cons def (read-assignments in)) null))
+
 (module+ main
   (require racket/pretty
            racket/cmdline)
