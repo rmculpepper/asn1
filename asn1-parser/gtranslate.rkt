@@ -144,10 +144,8 @@
 ;; ============================================================
 ;; Translation
 
-#|
 (define current-fixme-mode (make-parameter 'comment))
 (define current-tag-mode (make-parameter #f))
-(define current-env (make-parameter (hash)))
 
 (define (decl-of-module m)
   (match m
@@ -161,13 +159,6 @@
                        [(automatic) 'automatic]
                        [(explicit #f) 'explicit])))
        (decl-of-assignments assignments))]))
-
-(define (lookup-class ref)
-  (define env (current-env))
-  (let loop ([ref ref])
-    (match (hash-ref env ref #f)
-      [(assign:class _ _ (? class:defn? defn)) defn]
-      [_ #f])))
 
 (define (env-of-assignments assignments)
   (for/fold ([env #hash()]) ([assignment (in-list assignments)])
@@ -321,11 +312,6 @@
                                 [(ast:named name value)
                                  (list `(quote ,name) (expr-of value))])
                               decls)))]
-    [(object:sugar sugar)
-     (cond [(desugar-object sugar class)
-            => (lambda (decls)
-                 (expr-of (object:defn decls)))]
-           [else `(FIXME '(Sugar ,sugar ,class ,(lookup-class class)))])]
     [(object:from-object object field) (do-field-ref object field)]
 
     ;; ----------------------------------------
@@ -471,7 +457,6 @@
         [(comment) `(begin ,@(comments (format "FIXME ~s" fixme)) ,expr)]
         [(omit) expr])
       expr))
-|#
 
 ;; ============================================================
 

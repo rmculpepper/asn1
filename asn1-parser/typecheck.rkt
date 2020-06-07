@@ -356,38 +356,48 @@
 
 ;; ============================================================
 
-(define (typecheck defs [iters 10] #:loud? [loud? #f])
+(define (typecheck header defs [iters 10] #:loud? [loud? #f])
+  (typecheck-module (join-mod header defs) iters #:loud? loud?))
 
+(define (typecheck-module mod [iters 10] #:loud? [loud? #f])
   (define (initial-pass defs)
     (for/list ([def (in-list defs)])
-      (when #f
-        (eprintf "type checking:\n")
-        (pretty-print def)
-        (eprintf "=>\n"))
+      (when loud?
+        (when #f
+          (eprintf "type checking:\n")
+          (pretty-print def)
+          (eprintf "=>\n")))
       (define ddef (tc-definition def))
-      (pretty-print ddef)
+      (when loud? (pretty-print ddef))
       ddef))
-
   (define (disambiguation-pass defs)
     (for/list ([def (in-list defs)])
       (match def
         [(ambiguous (list def))
-         (when #f
-           (eprintf "disambiguating:\n")
-           (pretty-print def)
-           (eprintf "=>\n"))
+         (when loud?
+           (when #f
+             (eprintf "disambiguating:\n")
+             (pretty-print def)
+             (eprintf "=>\n")))
          (define ddef (tc-definition def))
-         (cond [(ambiguous? ddef)
-                (eprintf "...still ambiguous\n")]
-               [else (pretty-print ddef)])
+         (when loud?
+           (cond [(ambiguous? ddef)
+                  (eprintf "...still ambiguous\n")]
+                 [else (pretty-print ddef)]))
          ddef]
         [def def])))
+  (define h* (tc-header mod))
+  (when loud? (pretty-print h*))
+  (define defs*
+    (for/fold ([defs (initial-pass (mod:defn-assignments mod))])
+              ([i (in-range iters)] #:when (ormap ambiguous? defs))
+      (when loud? (eprintf "-- DISAMBIGUATION PASS ~s --\n" i))
+      (disambiguation-pass defs)))
+  (join-mod h* defs*))
 
-  (for/fold ([defs (initial-pass defs)])
-            ([i (in-range iters)] #:when (ormap ambiguous? defs))
-    (eprintf "-- DISAMBIGUATION PASS ~s --\n" i)
-    ;;(begin (printf "Ready?\n") (void (read-line)))
-    (disambiguation-pass defs)))
+(define (join-mod header defs)
+  (match-define (mod:defn id tagmode extmode exports imports _) header)
+  (mod:defn id tagmode extmode exports imports defs))
 
 ;; ============================================================
 
@@ -419,7 +429,7 @@
          (define header (read-module-header in))
          (pretty-print (tc-header header))
          (define defs0 (read-assignments in))
-         (define defs (typecheck defs0 #:loud? #t))
+         (define defs (mod:defn-assignments (typecheck header defs0 #:loud? #t)))
          (when #t (for-each check-ambiguous defs))
          (let ([amb (count ambiguous? defs)])
            (cond [(zero? amb) (eprintf "Success.\n")]
