@@ -121,7 +121,6 @@
     (tc-definition* def)))
 
 (define (tc-definition* def)
-  ;;(eprintf "processing ~e\n" def)
   (match def
     [(assign:word name params rhs)
      (match (ast-kind* rhs)
@@ -161,12 +160,8 @@
 (define (disambiguate kind tc t v)
   (match-define (ambiguous vs) v)
   (match (map-ok (tc t) vs)
-    [(list v)
-     (eprintf "DISAMBIGUATE OK\n")
-     v]
-    [vs*
-     (eprintf "DISAMBIGUATE ~s => ~s\n" (length vs) (length vs*))
-     (fail kind t (ambiguous vs*))]))
+    [(list v) v]
+    [vs* (fail kind t (ambiguous vs*))]))
 
 (define (tc-type t)
   (match t
@@ -315,18 +310,12 @@
     [(object:defn vs)
      (match (ast-eval t)
        [(class:defn cs _)
-        (eprintf "CHECKING:\n~v\n~v\n" cs vs)
-        (with-handlers ([tcfail? (lambda (e) (eprintf "FAILED: ~e\n\n" e) (raise e))])
-          (begin0 (object:defn (map (tc-class-component cs) vs))
-            (eprintf "OK!\n\n")))]
+        (object:defn (map (tc-class-component cs) vs))]
        [_ (fail 'object t v)])]
     [(object:sugar sugar)
      (match (ast-eval t)
        [(class:defn cs pattern)
-        (let ([vs (or (desugar sugar pattern)
-                      (and (eprintf "DESUGAR FAILED:\n~v\n~v\n\n" sugar pattern)
-                           (fail 'object t v)))])
-          (eprintf "DESUGARED TO:\n~v\n" vs)
+        (let ([vs (or (desugar sugar pattern) (fail 'object t v))])
           ((tc-object t) (object:defn vs)))]
        [_ (fail 'object t v)])]
     [_ (fail 'object t v)]))
@@ -544,7 +533,6 @@
 
 (define (desugar sugar pattern)
   (let loop ([sugar sugar] [pattern pattern] [acc null])
-    #;(eprintf "desugar:\n ~v\n ~v\n ~v\n\n" sugar pattern acc)
     (match* [sugar pattern]
       [[(cons lit sugar) (cons lit pattern)] ;; nonlinear!
        (loop sugar pattern acc)]
@@ -906,12 +894,11 @@
     (let loop ()
       (define rs (send asn1-assignment-parser parse* (asn1-lexer in)))
       (define drs (remove-duplicates (map simplify-collect-boxes rs)))
-      (eprintf "\n-- ~s => ~s --\n" (length rs) (length drs))
       (match drs
         [(list (token 'AssignmentOrEnd #f))
          null]
         [(list (token 'AssignmentOrEnd def))
-         (when #t
+         (when #f
            (eprintf "type-checking and disambiguating:\n")
            (pretty-print def)
            (eprintf "=>\n"))
@@ -927,13 +914,13 @@
     (for/list ([def (in-list defs)])
       (match def
         [(ambiguous (list def))
-         (when #t
+         (when #f
            (eprintf "disambiguating:\n")
            (pretty-print def)
            (eprintf "=>\n"))
          (define ddef (tc-definition def))
          (cond [(ambiguous? ddef)
-                (eprintf "!! still ambiguous !!\n")]
+                (eprintf "...still ambiguous\n")]
                [else (pretty-print ddef)])
          ddef]
         [def def])))
@@ -955,7 +942,7 @@
          (define ddefs
            (for/fold ([defs defs]) ([i (in-range 10)] #:when (ormap ambiguous? defs))
              (eprintf "-- DISAMBIGUATION PASS ~s --\n" i)
-             (begin (printf "Ready?\n") (void (read-line)))
+             ;;(begin (printf "Ready?\n") (void (read-line)))
              (dpass defs)))
          (for ([def (in-list ddefs)])
            (match def
