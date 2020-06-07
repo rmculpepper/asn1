@@ -8,12 +8,7 @@
 ;; - topological sort definitions by dependence?
 
 ;; Pre-pass
-;; - track type/class of context
-;; - desugar information objects
 ;; - mark dependent SET/SEQUENCE fields
-;; - resolve tagging mode to implicit/explicit
-;; - disambiguate NULL type vs NULL value (eg in object)
-;; - fix OID parsed as seq/set value, eg { id-pkix 1 } (or vice versa?)
 
 ;; ============================================================
 
@@ -465,8 +460,8 @@
      (call-with-input-file* file
        (lambda (in)
          (port-count-lines! in)
-         (define header (read-module-header in))
-         (define defs0 (read-assignments in))
-         (define mod (typecheck header defs0))
+         (define mod0 (read-module in))
+         (define mod1 (typecheck mod0))
+         (define mod2 (apply-tagging-mode mod1))
          (parameterize ((pretty-print-columns 80))
-           (pretty-print (decl-of-module mod))))))))
+           (pretty-print (decl-of-module mod2))))))))

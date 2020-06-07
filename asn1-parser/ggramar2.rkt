@@ -905,6 +905,11 @@
     [(list r) (token-value r)]
     [rs (ambiguous (map token-value rs))]))
 
+(define (read-module in)
+  (define header (read-module-header in))
+  (define defs (read-assignments in))
+  (join-mod header defs))
+
 (define (read-module-header in)
   (simplify-parses (send asn1-module-header-parser parse* (asn1-lexer in))))
 

@@ -288,6 +288,8 @@
 (struct type:from-class (class field) #:prefab)
 (struct type:instance-of (oid) #:prefab)
 (struct type:select (id type) #:prefab)
+(struct type:param () #:prefab)
+(struct type:imported (name) #:prefab)
 
 ;; Values
 
@@ -379,6 +381,8 @@
     [(type:from-class class field) 'type]
     [(type:instance-of oid) 'type]
     [(type:select id type) 'type]
+    [(type:param) 'type]
+    [(type:imported sym) 'type]
     ;; Values
     [(value v) 'value]
     [(value:bstring s) 'value]
@@ -406,6 +410,10 @@
     ;; Unknown
     [(x-set:defn members) 'x-set]
     [_ #f]))
+
+(define (join-mod header defs)
+  (match-define (mod:defn id tagmode extmode exports imports _) header)
+  (mod:defn id tagmode extmode exports imports defs))
 
 
 ;; ============================================================

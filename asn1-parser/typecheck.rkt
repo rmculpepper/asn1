@@ -48,7 +48,10 @@
   (for/fold ([env env]) ([p (in-list params)])
     (match-define (param gov name) p)
     (hash-set env name
-              (cond [(eq? (ast-kind* gov) 'type)
+              (cond [(eq? gov #f)
+                     (cond [(word? name) (cons 'type (type:param))]
+                           [else '(#f)])]
+                    [(eq? (ast-kind* gov) 'type)
                      (cond [(id? name) (cons 'value gov)]
                            [else (cons 'value-set gov)])]
                     [(eq? (ast-kind* gov) 'class)
@@ -112,9 +115,10 @@
   (match h
     [(mod:defn id tagmode extmode exports imports assignments)
      (for ([imp (in-list imports)])
-       (for ([sym (in-list (mod:import-syms imp))])
+       (for ([sym (in-list (mod:import-syms imp))]
+             #:when (not (hash-has-key? (env) sym)))
          (cond [(id? sym) (env-add! sym 'value #f)]
-               [(word? sym) (env-add! sym 'type #f)])))
+               [(word? sym) (env-add! sym 'type (type:imported sym))])))
      h]))
 
 (define (tc-definition def)
@@ -357,10 +361,7 @@
 
 ;; ============================================================
 
-(define (typecheck header defs [iters 10] #:loud? [loud? #f])
-  (typecheck-module (join-mod header defs) iters #:loud? loud?))
-
-(define (typecheck-module mod [iters 10] #:loud? [loud? #f])
+(define (typecheck mod [iters 10] #:loud? [loud? #f])
   (define (initial-pass defs)
     (for/list ([def (in-list defs)])
       (when loud?
@@ -396,9 +397,120 @@
       (disambiguation-pass defs)))
   (join-mod h* defs*))
 
-(define (join-mod header defs)
-  (match-define (mod:defn id tagmode extmode exports imports _) header)
-  (mod:defn id tagmode extmode exports imports defs))
+;; ============================================================
+
+;; Tagging mode (p213, 12.1.2 Global tagging mode)
+;; - IMPLICIT TAGS: applies to all components with *definite-tagged* types
+;; - definite-tagged: primitives, EXPLICIT tagged, SET, SEQUENCE
+;; - indefinite-tagged: CHOICE, ANY, parameter, "open type"
+;;   - what about IMPLICIT tagged type?
+;; - Note: must know openness of imported type (see p214 example)
+;; - AUTOMATIC TAGS: components tagged sequentially from 0
+;;   - disabled for any SET/SEQ/CHOICE that alreay has tag-annotated component
+
+;; type-definite : Type -> (U 'definite 'indefinite 'unknown)
+(define (type-definite t)
+  (match (ast-eval t)
+    [(type 'ANY) 'indefinite]
+    [(type _) 'definite]
+    [(? type:bit-string?) 'definite]
+    [(? type:choice?) 'indefinite]
+    [(? type:enum?) 'definite]
+    [(? type:integer?) 'definite]
+    [(? type:sequence?) 'definite]
+    [(? type:set?) 'definite]
+    [(? type:set-of?) 'definite]
+    [(? type:sequence-of?) 'definite]
+    [(type:tagged tag mode type) 'definite]
+    [(type:constrained type _) (type-definite type)]
+    [(type:any-defined-by id) 'indefinite]
+    [(type:from-object object field) 'indefinite]
+    [(type:from-class class field) 'indefinite]
+    [(type:instance-of oid) 'indefinite]
+    [(type:select id type) 'unknown] ;; FIXME
+    [(type:param) 'indefinite]
+    [(type:imported sym) 'unknown]
+    [_ 'unknown]))
+
+(define (apply-tagging-mode ast)
+  (define (handle-ast ast recur)
+    (match ast
+      [(mod:defn id tagmode extmode exports imports defs)
+       (mod:defn id 'explicit extmode exports imports (do-tagging-mode tagmode defs))]
+      [ast (recur ast)]))
+  (tree-transform-preorder ast handle-ast))
+
+(define (do-tagging-mode mode ast)
+  (match mode
+    [(or 'explicit 'implicit #f) (do-tagging-mode/indep (or mode 'explicit) ast)]
+    ['automatic (do-tagging-mode/auto ast)]))
+
+(define (do-tagging-mode/indep mode ast)
+  (define (handle-type t)
+    (match t
+      [(type:sequence cs) (type:sequence (map handle-component cs))]
+      [(type:set cs) (type:set (map handle-component cs))]
+      [(type:choice alts) (type:choice (map handle-alternative alts))]
+      [t t]))
+  (define (handle-component-type t)
+    (match t
+      [(type:tagged tag #f t)
+       (match mode
+         ['explicit
+          (type:tagged tag 'explicit t)]
+         ['implicit
+          (match (type-definite t)
+            ['definite (type:tagged tag 'implicit t)]
+            ['indefinite (type:tagged tag 'explicit t)]
+            ['unknown (fail 'apply-tagging-mode mode t)])])]
+      [t t]))
+  (define (handle-component c)
+    (match c
+      [(opt:optional c) (opt:optional (handle-component c))]
+      [(opt:default c d) (opt:default (handle-component c) d)]
+      [(ast:named name t) (ast:named name (handle-component-type t))]))
+  (define (handle-alternative alt)
+    (match alt [(ast:named name t) (ast:named name (handle-component-type t))]))
+  (tree-transform ast handle-type))
+
+(define (do-tagging-mode/auto ast)
+  (define (type:tagged/non-default? x)
+    (and (type:tagged? x) (not (eq? (type:tagged-mode x) #f))))
+  (define (handle-type t)
+    (match t
+      [(type:sequence cs) (type:sequence (handle-components cs))]
+      [(type:set cs) (type:set (handle-components cs))]
+      [(type:choice alts) (type:choice (handle-alternatives alts))]
+      [t t]))
+  (define (handle-components cs)
+    (cond [(for/or ([c (in-list cs)])
+             (type:tagged/non-default?
+              (match c
+               [(ast:named _ t) t]
+               [(opt:optional (ast:named _ t)) t]
+               [(opt:default (ast:named _ t) _) t])))
+           cs]
+          [else
+           (for/list ([c (in-list cs)] [tagnum (in-naturals)])
+             (handle-component1 c tagnum))]))
+  (define (handle-alternatives alts)
+    (cond [(for/or ([a (in-list alts)])
+             (match a [(ast:named _ t) (type:tagged/non-default? t)]))
+           alts]
+          [else
+           (for/list ([a (in-list alts)] [tagnum (in-naturals)])
+             (handle-component1 a tagnum))]))
+  (define (handle-component1 c tagnum)
+    (match c
+      [(opt:optional c) (opt:optional (handle-component1 c tagnum))]
+      [(opt:default c d) (opt:default (handle-component1 c tagnum) d)]
+      [(ast:named name t) (ast:named name (handle-component-type t tagnum))]))
+  (define (handle-component-type t tagnum)
+    (match (type-definite t)
+      ['definite (type:tagged (tag 'context-sensitive tagnum) 'implicit t)]
+      ['indefinite (type:tagged (tag 'context-sensitive tagnum) 'explicit t)]
+      ['unknown (fail 'apply-tagging-mode 'automatic t)]))
+  (tree-transform ast handle-type))
 
 ;; ============================================================
 
@@ -427,11 +539,14 @@
      (call-with-input-file* file
        (lambda (in)
          (port-count-lines! in)
-         (define header (read-module-header in))
-         (pretty-print (tc-header header))
-         (define defs0 (read-assignments in))
-         (define defs (mod:defn-assignments (typecheck header defs0 #:loud? #t)))
+         (define mod (read-module in))
+         (define defs (mod:defn-assignments (typecheck mod #:loud? #t)))
          (when #t (for-each check-ambiguous defs))
+         (when #t
+           (eprintf "\nApplied tagging mode (~s):\n" (mod:defn-tagmode mod))
+           (define tmod (apply-tagging-mode mod))
+           (pretty-print tmod)
+           (newline))
          (let ([amb (count ambiguous? defs)])
            (cond [(zero? amb) (eprintf "Success.\n")]
                  [else (eprintf "Failed to eliminate ~s ambiguities.\n" amb)])))))))
