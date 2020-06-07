@@ -115,7 +115,9 @@
                [(word? sym) (env-add! sym 'type #f)])))]))
 
 (define (tc-definition def)
-  (with-handlers ([tcfail? (lambda (e) (ambiguous (list def)))])
+  (with-handlers ([tcfail? (lambda (e)
+                             (eprintf "FAILED: ~e\n" e)
+                             (ambiguous (list def)))])
     (tc-definition* def)))
 
 (define (tc-definition* def)
@@ -124,14 +126,14 @@
     [(assign:word name params rhs)
      (match (ast-kind* rhs)
        ['type
-        (define ast (maybe-fun params rhs))
+        (define ast (tc-type (maybe-fun params rhs)))
         (env-add! name 'type ast)
         (assign:type name ast)]
        ['class
         (define ast (maybe-fun params rhs))
         (env-add! name 'class ast)
         (assign:class name ast)]
-       [_ (fail 'def 'word def)])]
+       [k (fail 'def k def)])]
     [(assign:id name params kind rhs)
      (match (ast-kind* kind)
        ['type
@@ -142,7 +144,7 @@
         (define ast ((tc-object kind) (maybe-fun params rhs)))
         (env-add! name 'object ast)
         (assign:object name kind ast)]
-       [_ (fail 'def 'id def)])]
+       [k (fail 'def k def)])]
     [(assign:x-set name params kind rhs)
      (match (ast-kind* kind)
        ['type
@@ -165,6 +167,23 @@
     [vs*
      (eprintf "DISAMBIGUATE ~s => ~s\n" (length vs) (length vs*))
      (fail kind t (ambiguous vs*))]))
+
+(define (tc-type t)
+  (match t
+    [(? (ref-of-kinds? '(type)) ref) ref]
+    [(ambiguous vs) (disambiguate 'type (lambda (_) tc-type) #f t)]
+    [(expr:apply fun args)
+     ;; FIXME
+     (tc-type fun)]
+    [(expr:fun params body)
+     (parameterize ((env (env-add-params (env) params)))
+       (tc-type body))]
+    [(type:integer nvs)
+     (begin0 t
+       (for ([nv (in-list nvs)])
+         (match nv [(ast:named name value) (env-add! name 'value t)])))]
+    [(app ast-kind 'type) t]
+    [_ (fail 'type #f t)]))
 
 (define ((tc-value t) v)
   (define (get-vtype) (type->vtype (ast-eval t)))
@@ -206,7 +225,7 @@
         ((tc-value alttype) value)]
        [_ (fail 'value v t)])]
     [(value:annotated type value)
-     ((tc-value value) type)]
+     ((tc-value type) value)]
     [(value _) v]
     [(value:from-object object field) v]
     [(value:bstring s) v]
@@ -232,10 +251,7 @@
 (define (lookup-field name cs)
   (for/or ([c (in-list cs)])
     (match c
-      [(field:type (== name) _)
-       (lambda (t)
-         #;(eprintf "checking ok type: ~e, ~e\n" t (ast-kind* t))
-         (case (ast-kind* t) [(type) t] [else (fail 'type #f t)]))]
+      [(field:type (== name) _) tc-type]
       [(field:value/fixed-type (== name) type _ _) (tc-value type)]
       [(field:value/var-type (== name) _ _) (tc-value #f)]
       [(field:value-set/fixed-type (== name) type _) (tc-value-set type)]
@@ -939,6 +955,7 @@
          (define ddefs
            (for/fold ([defs defs]) ([i (in-range 10)] #:when (ormap ambiguous? defs))
              (eprintf "-- DISAMBIGUATION PASS ~s --\n" i)
+             (begin (printf "Ready?\n") (void (read-line)))
              (dpass defs)))
          (for ([def (in-list ddefs)])
            (match def
@@ -948,7 +965,6 @@
                 (pretty-print def))
               (tc-definition* def)]
              [_ (void)]))
-         (for-each tc-definition* ddefs)
          (cond [(ormap ambiguous? ddefs)
                 (eprintf "Ambiguities remain.\n")]
                [else
