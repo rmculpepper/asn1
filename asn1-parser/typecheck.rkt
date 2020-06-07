@@ -1,6 +1,7 @@
 #lang racket/base
 (require racket/match
          racket/list
+         racket/pretty
          "ast2.rkt"
          "tree-util.rkt")
 
@@ -355,10 +356,7 @@
 
 ;; ============================================================
 
-(module+ main
-  (require racket/pretty
-           racket/cmdline
-           "ggramar2.rkt")
+(define (typecheck defs [iters 10] #:loud? [loud? #f])
 
   (define (initial-pass defs)
     (for/list ([def (in-list defs)])
@@ -385,6 +383,18 @@
          ddef]
         [def def])))
 
+  (for/fold ([defs (initial-pass defs)])
+            ([i (in-range iters)] #:when (ormap ambiguous? defs))
+    (eprintf "-- DISAMBIGUATION PASS ~s --\n" i)
+    ;;(begin (printf "Ready?\n") (void (read-line)))
+    (disambiguation-pass defs)))
+
+;; ============================================================
+
+(module+ main
+  (require racket/cmdline
+           "ggramar2.rkt")
+
   (define (print-env-delta env old-env)
     (define env-delta
       (for/fold ([env env]) ([k (in-hash-keys old-env)])
@@ -409,12 +419,7 @@
          (define header (read-module-header in))
          (pretty-print (tc-header header))
          (define defs0 (read-assignments in))
-         (define defs
-           (for/fold ([defs (initial-pass defs0)])
-                     ([i (in-range 10)] #:when (ormap ambiguous? defs))
-             (eprintf "-- DISAMBIGUATION PASS ~s --\n" i)
-             ;;(begin (printf "Ready?\n") (void (read-line)))
-             (disambiguation-pass defs)))
+         (define defs (typecheck defs0 #:loud? #t))
          (when #t (for-each check-ambiguous defs))
          (let ([amb (count ambiguous? defs)])
            (cond [(zero? amb) (eprintf "Success.\n")]
