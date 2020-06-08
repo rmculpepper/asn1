@@ -155,7 +155,7 @@
   (match a
     [(assign:type name type)
      (do-begin
-      `(define ,name ,(expr-of type))
+      `(define-asn1-type ,name ,(expr-of type))
       (decls-for-type type))]
     [(assign:value name type value)
      `(define ,name
@@ -200,15 +200,15 @@
                   `(SET-OF ,(expr-of type)))]
     [(type:string subtype) subtype]
     [(type:tagged (tag tagclass tagnum) mode type)
-     `(TAG ,(match tagclass
-              ['universal '#:universal]
-              ['application '#:application]
-              ['context-sensitive '#:context-sensitive]
-              ['private '#:private])
-           ,@(match mode
+     `(TAG ,@(match mode
                ['implicit '(#:implicit)]
                ['explicit '(#:explicit)]
                [#f '(#:explicit)])
+           ,@(match tagclass
+               ['universal '(#:universal)]
+               ['application '(#:application)]
+               ['context-sensitive '()]
+               ['private '(#:private)])
            ,tagnum
            ,(expr-of type))]
     ;; ----
@@ -239,9 +239,9 @@
      (define (const-oid? cs) (andmap const-oid-component? cs))
      (match cs
        [(cons (? id? base-oid) (? const-oid? cs))
-        `(build-OID base-oid ,@(map sexpr-of-oid-component cs))]
+        `(build-OID ,base-oid ,@(map sexpr-of-oid-component cs))]
        [(cons (? id? base-oid) cs)
-        `(append base-oid (list ,@(map expr-of-oid-component cs)))]
+        `(append ,base-oid (list ,@(map expr-of-oid-component cs)))]
        [(? const-oid? cs)
         `(OID ,@(map sexpr-of-oid-component cs))]
        [cs
@@ -443,6 +443,8 @@
            "typecheck.rkt")
   (command-line
    #:args files
+   (printf "#lang racket/base\n")
+   (printf "(require asn1)\n\n")
    (for ([file files])
      (call-with-input-file* file
        (lambda (in)
@@ -451,4 +453,9 @@
          (define mod1 (typecheck mod0))
          (define mod2 (apply-tagging-mode mod1))
          (parameterize ((pretty-print-columns 80))
-           (pretty-print (decl-of-module mod2))))))))
+           (printf ";; Translation of ~s\n" file)
+           (match (decl-of-module mod2)
+             [(cons 'begin forms)
+              (for-each pretty-write forms)]
+             [form (pretty-write form)])
+           (newline)))))))
