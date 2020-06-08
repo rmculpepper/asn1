@@ -289,7 +289,7 @@
 (struct type:instance-of (oid) #:prefab)
 (struct type:select (id type) #:prefab)
 (struct type:param () #:prefab)
-(struct type:imported (name) #:prefab)
+(struct type:imported (name definite) #:prefab)
 
 ;; Values
 
@@ -382,7 +382,7 @@
     [(type:instance-of oid) 'type]
     [(type:select id type) 'type]
     [(type:param) 'type]
-    [(type:imported sym) 'type]
+    [(type:imported sym definite) 'type]
     ;; Values
     [(value v) 'value]
     [(value:bstring s) 'value]

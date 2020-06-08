@@ -144,8 +144,16 @@
 
 (define (decl-of-module m)
   (match m
-    [(mod:defn id tagmode extmode exports imports assignments)
-     (decl-of-assignments assignments)]))
+    [(mod:defn (mod:id id _) tagmode extmode exports imports assignments)
+     `(module ,id racket/base
+        (require asn1 asn1/string-stub)
+        (provide (all-defined-out))
+        ,@(map decl-of-import imports)
+        ,@(mark-duplicates (unbegin (decl-of-assignments assignments))))]))
+
+(define (decl-of-import imp)
+  (match-define (mod:import syms (mod:id name _)) imp)
+  `(require (only-in (submod ".." ,name) ,@syms)))
 
 (define (decl-of-assignments assignments)
   (cons 'begin (map decl-of-assignment assignments)))
@@ -434,6 +442,27 @@
         [(omit) expr])
       expr))
 
+(define (unbegin form)
+  (match form
+    [(cons 'begin forms) (apply append (map unbegin forms))]
+    [form (list form)]))
+
+(define (mark-duplicates forms)
+  (define seen (make-hasheq))
+  (define (handle-form form)
+    (match form
+      [`(define ,name ,rhs)
+       (if (hash-ref seen name #f)
+           (list (unquoted-printing-string (format "#;(define ~s ....)" name)))
+           (begin (hash-set! seen name #t) (list form)))]
+      [`(begin ,@forms)
+       `(begin ,@(handle-forms forms))]
+      [form (list form)]))
+  (define (handle-forms forms)
+    (apply append (map handle-form forms)))
+  (handle-forms forms))
+
+
 ;; ============================================================
 
 (module+ main
@@ -444,7 +473,6 @@
   (command-line
    #:args files
    (printf "#lang racket/base\n")
-   (printf "(require asn1)\n\n")
    (for ([file files])
      (call-with-input-file* file
        (lambda (in)
@@ -453,9 +481,5 @@
          (define mod1 (typecheck mod0))
          (define mod2 (apply-tagging-mode mod1))
          (parameterize ((pretty-print-columns 80))
-           (printf ";; Translation of ~s\n" file)
-           (match (decl-of-module mod2)
-             [(cons 'begin forms)
-              (for-each pretty-write forms)]
-             [form (pretty-write form)])
-           (newline)))))))
+           (printf "\n;; Translation of ~s\n" file)
+           (for-each pretty-write (unbegin (decl-of-module mod2)))))))))

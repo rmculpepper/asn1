@@ -27,6 +27,14 @@
     (if (pair? v) (cons (car v) acc) acc)))
 
 ;; ============================================================
+
+;; module-env : Parameterof Hasheq[Symbol => (cons ModDefn Env)]
+(define module-env (make-parameter (hasheq)))
+
+(define (module-env-add! mod modenv)
+  (module-env (hash-set (module-env) (mod:id-name (mod:defn-id mod)) (cons mod modenv))))
+
+;; ============================================================
 ;; Pass 1: type-based disambiguation
 
 ;; Ambiguities
@@ -115,10 +123,17 @@
   (match h
     [(mod:defn id tagmode extmode exports imports assignments)
      (for ([imp (in-list imports)])
-       (for ([sym (in-list (mod:import-syms imp))]
-             #:when (not (hash-has-key? (env) sym)))
-         (cond [(id? sym) (env-add! sym 'value #f)]
-               [(word? sym) (env-add! sym 'type (type:imported sym))])))
+       (match-define (mod:import syms (mod:id modid _)) imp)
+       (define menv (cond [(hash-ref (module-env) modid #f) => cdr] [else '#hash()]))
+       (for ([sym (in-list syms)] #:when (not (hash-has-key? (env) sym)))
+         (cond [(and menv (hash-ref menv sym #f))
+                => (match-lambda
+                     [(cons 'type t)
+                      (define definite (parameterize ((env menv)) (type-definite sym)))
+                      (env-add! sym 'type (type:imported sym definite))]
+                     [(cons kind _) (env-add! sym kind #f)])]
+               [(id? sym) (env-add! sym 'value #f)]
+               [(word? sym) (env-add! sym 'type (type:imported sym 'unknown))])))
      h]))
 
 (define (tc-definition def)
@@ -133,35 +148,37 @@
      (match (ast-kind* rhs)
        ['type
         (define ast (tc-type (maybe-fun params rhs)))
-        (env-add! name 'type ast)
-        (assign:type name ast)]
+        (tc-definition* (assign:type name ast))]
        ['class
         (define ast (maybe-fun params rhs))
-        (env-add! name 'class ast)
-        (assign:class name ast)]
+        (tc-definition* (assign:class name ast))]
        [k (fail 'def k def)])]
     [(assign:id name params kind rhs)
      (match (ast-kind* kind)
        ['type
         (define ast ((tc-value kind) (maybe-fun params rhs)))
-        (env-add! name 'value ast)
-        (assign:value name kind ast)]
+        (tc-definition* (assign:value name kind ast))]
        ['class
         (define ast ((tc-object kind) (maybe-fun params rhs)))
-        (env-add! name 'object ast)
-        (assign:object name kind ast)]
+        (tc-definition* (assign:object name kind ast))]
        [k (fail 'def k def)])]
     [(assign:x-set name params kind rhs)
      (match (ast-kind* kind)
        ['type
         (define ast (tc-value-set kind (maybe-fun params rhs)))
-        (env-add! name 'value-set ast)
-        (assign:value-set name kind ast)]
+        (tc-definition* (assign:value-set name kind ast))]
        ['class
         (define ast ((tc-object-set kind) (maybe-fun params rhs)))
-        (env-add! name 'object-set ast)
-        (assign:object-set name kind ast)]
+        (tc-definition* (assign:object-set name kind ast))]
        [_ (fail 'def 'x-set def)])]
+
+    [(assign:type name ast) (begin (env-add! name 'type ast) def)]
+    [(assign:class name ast) (begin (env-add! name 'class ast) def)]
+    [(assign:value name kind ast) (begin (env-add! name 'value ast) def)]
+    [(assign:object name kind ast) (begin (env-add! name 'object ast) def)]
+    [(assign:value-set name kind ast) (begin (env-add! name 'value-set ast) def)]
+    [(assign:object-set name kind ast) (begin (env-add! name 'object-set ast) def)]
+
     [#f #f]))
 
 (define (disambiguate kind tc t v)
@@ -388,14 +405,19 @@
                  [else (pretty-print ddef)]))
          ddef]
         [def def])))
-  (define h* (tc-header mod))
-  (when loud? (pretty-print h*))
-  (define defs*
-    (for/fold ([defs (initial-pass (mod:defn-assignments mod))])
-              ([i (in-range iters)] #:when (ormap ambiguous? defs))
-      (when loud? (eprintf "-- DISAMBIGUATION PASS ~s --\n" i))
-      (disambiguation-pass defs)))
-  (join-mod h* defs*))
+  (parameterize ((env base-env))
+    (define h* (tc-header mod))
+    (when loud? (pretty-print h*))
+    (define defs*
+      (for/fold ([defs (initial-pass (mod:defn-assignments mod))])
+                ([i (in-range iters)] #:when (ormap ambiguous? defs))
+        (when loud? (eprintf "-- DISAMBIGUATION PASS ~s --\n" i))
+        (disambiguation-pass defs)))
+    (define mod* (apply-tagging-mode (join-mod h* defs*)))
+    (begin ;; update env with result of applying tag mode
+      (for-each tc-definition (mod:defn-assignments mod*)))
+    (module-env-add! mod* (env))
+    mod*))
 
 ;; ============================================================
 
@@ -429,7 +451,7 @@
     [(type:instance-of oid) 'indefinite]
     [(type:select id type) 'unknown] ;; FIXME
     [(type:param) 'indefinite]
-    [(type:imported sym) 'unknown]
+    [(type:imported sym definite) definite]
     [_ 'unknown]))
 
 (define (apply-tagging-mode ast)
@@ -543,7 +565,7 @@
          (define mod (read-module in))
          (define defs (mod:defn-assignments (typecheck mod #:loud? #t)))
          (when #t (for-each check-ambiguous defs))
-         (when #t
+         (when #f
            (eprintf "\nApplied tagging mode (~s):\n" (mod:defn-tagmode mod))
            (define tmod (apply-tagging-mode mod))
            (pretty-print tmod)
