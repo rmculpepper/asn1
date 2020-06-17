@@ -164,7 +164,7 @@
     [(assign:type name type)
      (do-begin
       `(define-asn1-type ,name ,(expr-of type))
-      (decls-for-type type))]
+      (decls-for-type type name))]
     [(assign:value name type value)
      `(define ,name
         ,@(if (show-type?) (comments (format "~s" (expr-of type))) null)
@@ -194,9 +194,20 @@
     ;; TYPE
     #;[(ref:type name) name]
     [(type name) name]
-    [(type:bit-string _) 'BIT-STRING]
+    [(type:bit-string '()) 'BIT-STRING]
+    [(type:bit-string nvs)
+     `(BIT-STRING/names
+       (list ,@(map (match-lambda
+                      [(ast:named name value)
+                       `(cons ',name ,(expr-of value))])
+                    nvs)))]
     [(type:choice alts) `(CHOICE ,@(map choice-alt-of alts))]
-    [(type:enum _) 'ENUMERATED]
+    [(type:enum nvs)
+     `(ENUMERATED/names
+       (list ,@(map (match-lambda
+                      [(ast:named name value)
+                       `(cons ',name ,(expr-of value))])
+                    nvs)))]
     [(type:integer _) 'INTEGER]
     [(type:sequence fields) `(SEQUENCE ,@(map seq/set-field-of fields))]
     [(type:set fields) `(SET ,@(map seq/set-field-of fields))]
@@ -353,34 +364,59 @@
     [_ `(FIXME '(expr ,x))]))
 
 (define (do-field-ref obj field)
-  `(object-ref ,(expr-of obj) ',field))
+  (foldr (lambda (f o) `(hash-ref ,o ',f)) (expr-of obj) field))
 
-(define (decls-for-type t)
+(define (decls-for-type t [tname #f])
   (define (make-def x)
     (match-define (ast:named name value) x)
     `(define ,name ,(expr-of value)))
+  (define (format-symbol fmt . args)
+    (string->symbol (apply format fmt args)))
   (match t
+    #;
     [(type:bit-string (? list? names))
-     (map make-def names)]
+     (map (match-lambda
+            [(ast:named name value)
+             `(define ,(format-symbol "~s.~s" (or tname 'BIT) name)
+                ,(expr-of value))])
+          names)]
     [(type:integer (? list? names))
      (map make-def names)]
+    #;
     [(type:enum (? list? names))
-     (map make-def names)]
+     (let loop ([names names] [next 0] [seen null])
+       (match names
+         [(cons (? symbol? name) names)
+          (let ([next (let loop ([next next])
+                        (if (member next seen) (loop (add1 next)) next))])
+            (cons `(define ,(format-symbol "~s.~s" (or tname 'ENUM) name) ,next)
+                  (loop names (add1 next) seen)))]
+         [(cons (ast:named name value) names)
+          (cons `(define ,(format-symbol "~s.~s" (or tname 'ENUM) name) ,(expr-of value))
+                (loop names next (cons value seen)))]
+         ['() null]))]
     [_ null]))
 
 (define (seq/set-field-of f)
   (match f
     [(opt:optional (ast:named name type))
-     `[,name ,(expr-of type) #:optional]]
+     `[,name ,@(splice-expr-of type) #:optional]]
     [(opt:default (ast:named name type) default)
-     `[,name ,(expr-of type) #:default ,(expr-of default)]]
+     `[,name ,@(splice-expr-of type) #:default ,(expr-of default)]]
     [(ast:named name type)
-     `[,name ,(expr-of type)]]))
+     `[,name ,@(splice-expr-of type)]]))
 
 (define (choice-alt-of a)
   (match a
     [(ast:named name type)
-     `[,name ,(expr-of type)]]))
+     `[,name ,@(splice-expr-of type)]]))
+
+(define (splice-expr-of t)
+  (match t
+    [(? type:tagged?)
+     (match (expr-of t)
+       [`(TAG . ,contents) contents])]
+    [t (list (expr-of t))]))
 
 (define (const-oid-component? c)
   (or (exact-nonnegative-integer? c) (ast:named? c)))
@@ -444,7 +480,7 @@
 
 (define (unbegin form)
   (match form
-    [(cons 'begin forms) (apply append (map unbegin forms))]
+    [(cons 'begin forms) forms]
     [form (list form)]))
 
 (define (mark-duplicates forms)
@@ -452,11 +488,16 @@
   (define (handle-form form)
     (match form
       [`(define ,name ,rhs)
-       (if (hash-ref seen name #f)
-           (list (unquoted-printing-string (format "#;(define ~s ....)" name)))
-           (begin (hash-set! seen name #t) (list form)))]
+       (match (hash-ref seen name #f)
+         [(list (== rhs))
+          (list (unquoted-printing-string (format "#;~s" form)))]
+         [(list other-rhs)
+          (list (unquoted-printing-string (format "#;~s #| CONFLICT |#" form)))]
+         [#f
+          (hash-set! seen name (list rhs))
+          (list form)])]
       [`(begin ,@forms)
-       `(begin ,@(handle-forms forms))]
+       (list `(begin ,@(handle-forms forms)))]
       [form (list form)]))
   (define (handle-forms forms)
     (apply append (map handle-form forms)))
@@ -470,7 +511,19 @@
            racket/pretty
            "ggramar2.rkt"
            "typecheck.rkt")
+
+  (define (pretty-print-code code)
+    (parameterize ((pretty-print-columns 96)
+                   (pretty-print-current-style-table
+                    (pretty-print-extend-style-table
+                     (pretty-print-current-style-table)
+                     '(define-asn1-type)
+                     '(define))))
+      (pretty-write code)))
+
   (command-line
+   #:once-any
+   [("--omit-fixme") "Omit FIXME annotations" (current-fixme-mode 'omit)]
    #:args files
    (printf "#lang racket/base\n")
    (for ([file files])
@@ -480,6 +533,5 @@
          (define mod0 (read-module in))
          (define mod1 (typecheck mod0))
          (define mod2 (apply-tagging-mode mod1))
-         (parameterize ((pretty-print-columns 80))
-           (printf "\n;; Translation of ~s\n" file)
-           (for-each pretty-write (unbegin (decl-of-module mod2)))))))))
+         (printf "\n;; Translation of ~s\n" file)
+         (for-each pretty-print-code (unbegin (decl-of-module mod2))))))))
