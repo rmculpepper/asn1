@@ -15,30 +15,40 @@
 
 (define show-type? (make-parameter #f))
 (define current-fixme-mode (make-parameter 'comment))
+(define split-definitions? (make-parameter #t))
 
 (define (decl-of-module m)
   (match m
     [(mod:defn (mod:id id _) tagmode extmode exports imports assignments)
+     (define defs (unbegin (decl-of-assignments assignments)))
      `(module ,id racket/base
         (require asn1 asn1/string-stub)
         (provide (all-defined-out))
         ,@(map decl-of-import imports)
-        ,@(mark-duplicates (unbegin (decl-of-assignments assignments))))]))
+        ,@(cond [(split-definitions?)
+                 (define-values (tdefs vdefs)
+                   (partition (match-lambda [`(define-asn1-type . ,_) #t] [_ #f])
+                              defs))
+                 `[,(unquoted-printing-string ";; Value, etc definitions")
+                   ,@(mark-duplicates vdefs)
+                   ,(unquoted-printing-string ";; Type definitions")
+                   ,@tdefs]]
+                [else (mark-duplicates defs)]))]))
 
 (define (decl-of-import imp)
   (match-define (mod:import syms (mod:id name _)) imp)
   `(require (only-in (submod ".." ,name) ,@syms)))
 
 (define (decl-of-assignments assignments)
-  (cons 'begin (map decl-of-assignment assignments)))
+  (cons 'begin (apply append (map unbegin (map decl-of-assignment assignments)))))
 
 (define (decl-of-assignment a)
   (define (do-begin a bs) (if (null? bs) a `(begin ,a ,@bs)))
   (match a
     [(assign:type name type)
-     (do-begin
-      `(define-asn1-type ,name ,(expr-of type))
-      (decls-for-type type name))]
+     `(begin
+        (define-asn1-type ,name ,(expr-of type))
+        ,@(decls-for-type type name))]
     [(assign:value name type value)
      `(define ,name
         ,@(if (show-type?) (comments (format "~s" (expr-of type))) null)
