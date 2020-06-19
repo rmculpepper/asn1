@@ -197,10 +197,10 @@
 ;; Base type encoders
 
 (define (encode-bad type value [expected #f] #:msg [msg #f] #:more [more ""])
-  (asn1-error "bad value for type~a\n  type: ~a~a\n  value: ~e~a"
+  (asn1-error "bad value for type~a\n  type: ~e~a\n  value: ~e~a"
               (if msg (format ";\n ~a" msg) "")
               type
-              (if expected (format "\n  expected: ~a" expected) "")
+              (if expected (format "\n  expected: ~.s" expected) "")
               value
               more))
 
@@ -475,11 +475,11 @@
 ;; Base type decoders
 
 (define (decode-bad type encoded #:msg [msg #f] #:more [more #f])
-  (asn1-error "bad encoding for type~a\n  type: ~a~a"
+  (asn1-error "bad encoding for type~a\n  type: ~a~a~a"
               (if msg (format ";\n ~a" msg) "")
               type
               (if encoded (format "\n  encoding: ~e" encoded) "")
-              more))
+              (or more "")))
 
 ;; decode-boolean : Bytes -> Boolean
 (define (decode-boolean b der?)
