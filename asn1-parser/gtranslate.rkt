@@ -80,18 +80,18 @@
     [(type name) name]
     [(type:bit-string '()) 'BIT-STRING]
     [(type:bit-string nvs)
-     `(BIT-STRING/names
-       (list ,@(map (match-lambda
-                      [(ast:named name value)
-                       `(cons ',name ,(expr-of value))])
-                    nvs)))]
+     `(WRAP-NAMES BIT-STRING
+                  (list ,@(map (match-lambda
+                                 [(ast:named name value)
+                                  `(cons ',name ,(expr-of value))])
+                               nvs)))]
     [(type:choice alts) `(CHOICE ,@(map choice-alt-of alts))]
     [(type:enum nvs)
-     `(ENUMERATED/names
-       (list ,@(map (match-lambda
-                      [(ast:named name value)
-                       `(cons ',name ,(expr-of value))])
-                    nvs)))]
+     `(WRAP-NAMES ENUMERATED
+                  (list ,@(map (match-lambda
+                                 [(ast:named name value)
+                                  `(cons ',name ,(expr-of value))])
+                               nvs)))]
     [(type:integer _) 'INTEGER]
     [(type:sequence fields) `(SEQUENCE ,@(map seq/set-field-of fields))]
     [(type:set fields) `(SET ,@(map seq/set-field-of fields))]
