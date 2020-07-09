@@ -279,9 +279,9 @@
   ;; read-length : -> (U Nat #f)
   (define (read-length)
     (let ([l (b-read-byte br)])
-      (cond [(< l 127) l]
-            [(= l 127) (BER-error "invalid length (reserved encoding)")]
+      (cond [(< l 128) l]
             [(= l 128) (if der? (DER-error "indefinite length encoding") #f)]
+            [(= l 255) (BER-error "invalid length (reserved encoding)")]
             [else
              (let ([ll (- l 128)])
                (define len (b-read-integer br ll #f))
