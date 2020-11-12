@@ -69,6 +69,10 @@
          PrintableString
          IA5String
          UTF8String
+         NumericString
+         VisibleString
+         UniversalString
+         BMPString
 
          OID
          build-OID
@@ -212,10 +216,12 @@
 (define OBJECT-IDENTIFIER (make-base-type 'OBJECT-IDENTIFIER))
 (define RELATIVE-OID (make-base-type 'RELATIVE-OID))
 (define ENUMERATED (make-base-type 'ENUMERATED))
+(define NumericString (make-base-type 'NumericString))
 (define PrintableString (make-base-type 'PrintableString))
-;; T61String
 (define IA5String (make-base-type 'IA5String))
-;; UTCTime
+(define VisibleString (make-base-type 'VisibleString))
+(define UniversalString (make-base-type 'UniversalString))
+(define BMPString (make-base-type 'BMPString))
 (define UTF8String (make-base-type 'UTF8String))
 
 ;; ============================================================
@@ -230,11 +236,15 @@
             (oid        OBJECT-IDENTIFIER)
             (rel-oid    RELATIVE-OID)
             (enum       ENUMERATED)
-            (printable  PrintableString)
             (ia5string  IA5String)
             (utf8       UTF8String)
             (sequence   (SEQUENCE-OF REC))
             (set        (SET-OF REC))
+            (numeric-string    NumericString)
+            (printable-string  PrintableString)
+            (visible-string    VisibleString)
+            (universal-string  UniversalString)
+            (bmp-string        BMPString)
             #:extensible any)))
 
 ;; ============================================================

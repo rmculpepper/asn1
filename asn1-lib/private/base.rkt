@@ -86,9 +86,11 @@
                    [(13) " (RELATIVE OID)"]
                    [(16) " (SEQUENCE)"]
                    [(17) " (SET)"]
+                   [(18) " (NumericString)"]
                    [(19) " (PrintableString)"]
                    [(22) " (IA5String)"]
                    [(23) " (UTCTime)"]
+                   [(26) " (VisibleString)"]
                    [(28) " (UniversalString)"]
                    [(30) " (BMPString)"]
                    [(12) " (UTF8String)"]
@@ -128,12 +130,14 @@
     [(RELATIVE-OID)       13]
     [(SEQUENCE)           16]
     [(SET)                17]
+    [(NumericString)      18]
     [(PrintableString)    19]
     [(IA5String)          22]
     [(UTCTime)            23] ;; Not supported
-    [(UniversalString)    28] ;; Not supported; UCS4
-    [(BMPString)          30] ;; Not supported; UCS2
-    [(UTF8String)         12] ;; UTF8
+    [(VisibleString)      26]
+    [(UniversalString)    28] ;; UCS-4
+    [(BMPString)          30] ;; UCS-2
+    [(UTF8String)         12] ;; UTF-8
     [(GeneralizedTime)    24] ;; Not supported
     [else (error 'base-type-tagn "unknown base type: ~e" base-type)]))
 
@@ -158,12 +162,14 @@
     [(RELATIVE-OID)       'P]
     [(SEQUENCE)           'C]
     [(SET)                'C]
+    [(NumericString)      'PC]
     [(PrintableString)    'PC]
     [(IA5String)          'PC]
     [(UTCTime)            'P]  ;; Not supported
-    [(UniversalString)    'PC] ;; Not supported; UCS4
-    [(BMPString)          'PC] ;; Not supported; UCS2
-    [(UTF8String)         'PC] ;; UTF8
+    [(VisibleString)      'PC]
+    [(UniversalString)    'PC] ;; UCS-4
+    [(BMPString)          'PC] ;; UCS-2
+    [(UTF8String)         'PC] ;; UTF-8
     [(GeneralizedTime)    'P]  ;; Not supported
     [else (error 'base-type-cons-mode "unknown base type: ~e" base-type)]))
 
@@ -224,6 +230,12 @@
 ;; asn1-printable-string? : Any -> Boolean
 (define (asn1-printable-string? s)
   (and (string? s) (regexp-match? #rx"^[-a-zA-Z0-9 '()+,./:=?]*$" s)))
+
+(define (asn1-numeric-string? s)
+  (and (string? s) (regexp-match? #rx"^[ 0-9]*$" s)))
+
+(define (asn1-visible-string? s)
+  (and (string? s) (regexp-match? #rx"^[\x20-\x7E]*$" s)))
 
 ;; ----------------------------------------
 ;; INTEGER:

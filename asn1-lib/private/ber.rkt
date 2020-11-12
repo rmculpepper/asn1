@@ -247,19 +247,10 @@
            (loop q (list r)))))
 
 (define (encode-bmp-string s)
-  (define b (make-bytes (* 2 (string-length s))))
-  (for ([i (in-range (string-length s))])
-    (define si (char->integer (string-ref s i)))
-    (unless (or (<= #x0000 si #xd7ff) (<= #xe000 si #xffff))
-      (encode-bad 'BMPString s))
-    (integer->integer-bytes si 2 #f #t b (* i 2)))
-  s)
+  (encode-to-bytes 'BMPString s "UCS-2BE"))
 
 (define (encode-universal-string s)
-  (define b (make-bytes (* 4 (string-length s))))
-  (for ([i (in-range (string-length s))])
-    (integer->integer-bytes (char->integer (string-ref s i)) 2 #f #t b (* i 4)))
-  s)
+  (encode-to-bytes 'UniversalString s "UCS-4BE"))
 
 ;; ============================================================
 ;; Decoding
@@ -467,10 +458,12 @@
     [(OBJECT-IDENTIFIER)(decode-object-identifier c)]
     [(RELATIVE-OID)     (decode-relative-oid c)]
     [(ENUMERATED)       (base256->signed c)]
+    [(NumericString)    (decode-numeric-string (gather))]
     [(PrintableString)  (decode-printable-string (gather))]
     ;; T61String
     [(IA5String)        (decode-ia5string (gather))]
     ;; UTCTime
+    [(VisibleString)    (decode-visible-string (gather))]
     [(UniversalString)  (decode-universal-string (gather))]
     [(BMPString)        (decode-bmp-string (gather))]
     [(UTF8String)       (decode-utf8-string (gather))]
@@ -526,7 +519,7 @@
 (define (decode-ia5string bs)
   (define s (bytes->string/latin-1 bs))
   (unless (ascii-string? s)
-    (decode-bad 'IA5string bs))
+    (decode-bad 'IA5String bs))
   s)
 
 ;; decode-integer : Bytes -> Integer
@@ -566,11 +559,22 @@
             [else
              (loop (+ (- next 128) (arithmetic-shift c 7)))]))))
 
+;; decode-numeric-string : Bytes -> String
+(define (decode-numeric-string bs)
+  (define s (bytes->string/latin-1 bs))
+  (unless (asn1-numeric-string? s) (decode-bad 'NumericString bs))
+  s)
+
 ;; decode-printable-string : Bytes -> Printable-String
 (define (decode-printable-string bs)
   (let ([s (bytes->string/latin-1 bs)])
     (unless (asn1-printable-string? s) (decode-bad 'PrintableString bs))
     s))
+
+(define (decode-visible-string bs)
+  (define s (bytes->string/latin-1 bs))
+  (unless (asn1-visible-string? s) (decode-bad 'VisibleString bs))
+  s)
 
 (define (decode-utf8-string b)
   (if (bytes-utf-8-length b #f)
@@ -580,17 +584,27 @@
 (define (decode-bmp-string b)
   (unless (even? (bytes-length b))
     (BER-error "encoded BMPString length not a multiple of 2"))
-  (define s (make-string (quotient (bytes-length b) 2)))
-  (for ([bi (in-range 0 (bytes-length b) 2)]
-        [si (in-naturals)])
-    (string-set! s si (integer->char (integer-bytes->integer b #f #t bi (+ bi 2)))))
-  s)
+  (decode-to-string 'BMPString b "UCS-2BE"))
 
 (define (decode-universal-string b)
   (unless (zero? (remainder (bytes-length b) 4))
     (BER-error "encoded UniversalString length not a multiple of 4"))
-  (define s (make-string (quotient (bytes-length b) 4)))
-  (for ([bi (in-range 0 (bytes-length b) 4)]
-        [si (in-naturals)])
-    (string-set! s si (integer->char (integer-bytes->integer b #f #t bi (+ bi 4)))))
-  s)
+  (decode-to-string 'UniversalString b "UCS-4BE"))
+
+;; decode-to-string : Symbol Bytes String -> String
+(define (decode-to-string what b benc)
+  (define conv (bytes-open-converter benc "UTF-8"))
+  (define-values (b* nconv status) (bytes-convert conv b))
+  (bytes-close-converter conv)
+  (case status
+    [(complete) (bytes->string/utf-8 b*)]
+    [else (decode-bad what b)]))
+
+;; encode-to-bytes : Symbol String String -> Bytes
+(define (encode-to-bytes what s benc)
+  (define conv (bytes-open-converter "UTF-8" benc))
+  (define-values (b* nconv status) (bytes-convert conv (string->bytes/utf-8 s)))
+  (bytes-close-converter conv)
+  (case status
+    [(complete) b*]
+    [else (encode-bad what s)]))
