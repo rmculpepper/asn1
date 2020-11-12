@@ -74,6 +74,12 @@
          UniversalString
          BMPString
 
+         GeneralizedTime
+         UTCTime
+
+         asn1-utc-time?
+         asn1-generalized-time?
+
          OID
          build-OID
 
@@ -226,6 +232,64 @@
 
 ;; ============================================================
 
+;; Convert to string, check regexp
+(define GeneralizedTime
+  (TAG #:implicit #:universal 24
+       (WRAP IA5String
+             #:encode (lambda (s)
+                        (cond [(regexp-match? GeneralizedTime-rx s) s]
+                              [else (encode-bad 'GeneralizedTime s)]))
+             #:decode (lambda (s)
+                        (cond [(regexp-match? GeneralizedTime-rx s) s]
+                              [else (decode-bad 'GeneralizedTime s)])))))
+
+(define UTCTime
+  (TAG #:implicit #:universal 23
+       (WRAP IA5String
+             #:encode (lambda (s)
+                        (cond [(regexp-match? UTCTime-rx s) s]
+                              [else (encode-bad 'UTCTime s)]))
+             #:decode (lambda (s)
+                        (cond [(regexp-match? UTCTime-rx s) s]
+                              [else (decode-bad 'UTCTime s)])))))
+
+;; GeneralizedTime = YYYYMMDDhh[mm[ss[<sep>f[f[f[f]]]]]]<offset>
+;; offset = ε | Z | +hhmm | -hhmm
+(define YYYY-rx "[0-9]{4}")
+(define MMDD-rx
+  (string-append
+   "(?:"
+   "(?:01|03|05|07|08|10|12)(?:0[1-9]|[12][0-9]|3[0-1])" "|"
+   "(?:04|06|09|11)(?:0[1-9]|[12][0-9]|30)" "|"
+   "02(?:0[1-9]|[12][0-9])"
+   ")"))
+
+(define hhmmssf-rx
+  (string-append
+   "(?:[01][0-9]|2[0-3])" ;; hh
+   "(?:"
+   "(?:[0-5][0-9])?" ;; mm
+   "(?:"
+   "(?:[0-5][0-9]|60)?" ;; ss -- allow leap second
+   "(?:[.,][0-9]+)?"  ;; .f+
+   ")?)"))
+
+(define offset-rx
+  "(?:Z|[+-](?:[01][0-9]|2[0-3])(?:[0-5][0-9])?)")
+(define GeneralizedTime-rx
+  (pregexp (string-append "^" YYYY-rx MMDD-rx hhmmssf-rx offset-rx "?$")))
+
+;; UTCTime = like GeneralizedTime, but 2 chars for YY, offset required
+(define UTCTime-rx
+  (pregexp (string-append "^[0-9]{2}" MMDD-rx hhmmssf-rx offset-rx "$")))
+
+(define (asn1-utc-time? v)
+  (and (string? v) (regexp-match? UTCTime-rx v)))
+(define (asn1-generalized-time? v)
+  (and (string? v) (regexp-match? GeneralizedTime-rx v)))
+
+;; ============================================================
+
 (define ANY*
   (let ([REC (DELAY ANY*)])
     (CHOICE (boolean    BOOLEAN)
@@ -245,6 +309,8 @@
             (visible-string    VisibleString)
             (universal-string  UniversalString)
             (bmp-string        BMPString)
+            (generalized-time  GeneralizedTime)
+            (utc-time          UTCTime)
             #:extensible any)))
 
 ;; ============================================================
