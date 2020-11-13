@@ -35,6 +35,7 @@ details.
 @include-section["intro.scrbl"]
 @include-section["types.scrbl"]
 @include-section["codec.scrbl"]
+@include-section["misc.scrbl"]
 @include-section["translating.scrbl"]
 
 @bibliography[
