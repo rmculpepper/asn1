@@ -43,6 +43,8 @@ of the given ASN.1 @racket[type], using the specified encoding
 
 Reads a value of the given ASN.1 @racket[type] from @racket[in], using the
 specified encoding @racket[rules].
+
+@history[#:changed "1.2" @elem{Strings and bytes in the result are immutable.}]
 }
 
 @defproc[(asn1->bytes [type asn1-type?] [value any/c]
@@ -59,6 +61,8 @@ using the specified encoding @racket[rules].
 
 Decodes @racket[bstr] as an instance of the given ASN.1 @racket[type],
 using the specified encoding @racket[rules].
+
+@history[#:changed "1.2" @elem{Strings and bytes in the result are immutable.}]
 }
 
 @deftogether[[
@@ -84,6 +88,8 @@ Equivalent to calling the corresponding procedure with @racket[#:rules
 (asn1->bytes Integers '(1 2 3 -1000) #:rules 'DER)
 (asn1->bytes/DER Integers '(1 2 3 -1000))
 ]
+
+@history[#:changed "1.2" @elem{Strings and bytes in the result are immutable.}]
 }
 
 
