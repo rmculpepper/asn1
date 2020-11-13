@@ -113,6 +113,60 @@ Type of Unicode strings encoded using UTF-8. Corresponds to Racket's
 @racket[string?].
 }
 
+@defthing[NumericString asn1-type?]{
+
+Type of ASCII strings containing only digits and spaces. Corresponds
+to Racket strings matching @racket[#rx"^[ 0-9]*$"].
+
+@history[#:added "1.2"]
+}
+
+@defthing[VisibleString asn1-type?]{
+
+Type of ASCII strings containing the ``visible characters'' plus the
+space character. Corresponds to Racket strings matching
+@racketvalfont{#rx"^[\x20-\x7E]*$"}.
+
+@history[#:added "1.2"]
+}
+
+@defthing[UniversalString asn1-type?]{
+
+Type of Unicode strings encoded using UCS-4. Corresponds to Racket's
+@racket[string?].
+
+@history[#:added "1.2"]
+}
+
+@defthing[BMPString asn1-type?]{
+
+Type of Unicode strings including only characters from the Basic
+Multilingual Plane (BMP), encoded using UCS-2. Corresponds to a subset
+of Racket's @racket[string?].
+
+@history[#:added "1.2"]
+}
+
+@defthing[GeneralizedTime asn1-type?]{
+
+Type for dates and times using a 4-digit year. The minimum precision is to the
+hour; the maximum precision is to the fraction of the second. A UTC marker
+(@tt{Z}) or an offset from UTC is optional. Corresponds to Racket strings
+satisfying the @racket[asn1-generalized-time?] predicate.
+
+@history[#:added "1.2"]
+}
+
+@defthing[UTCTime asn1-type?]{
+
+Type for dates and times using a 2-digit year. The minimum precision is to the
+hour; the maximum precision is to the fraction of the second. A UTC marker
+(@tt{Z}) or an offset from UTC is required. Corresponds to Racket strings
+satisfying the @racket[asn1-utc-time?] predicate.
+
+@history[#:added "1.2"]
+}
+
 @section{Structured Types}
 
 @defform[(SEQUENCE component ... maybe-extensible)
@@ -355,5 +409,15 @@ characters allowed by @racket[IA5String] (that is, characters 0
 through 127), @racket[#f] otherwise.
 }
 
+@deftogether[[
+@defproc[(asn1-generalized-time? [v any/c]) boolean?]
+@defproc[(asn1-utc-time? [v any/c]) boolean?]
+]]{
+
+Returns @racket[#t] if @racket[v] is a string representing a valid
+GeneralizedTime or UTCTime, respectively; otherwise, returns @racket[#f].
+
+@history[#:added "1.2"]
+}
 
 @(close-eval the-eval)
