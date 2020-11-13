@@ -270,7 +270,6 @@
     (define (content-gather cont base-type)
       (cond [(content-cons? cont)
              (define want-tag (base-type-tag base-type))
-             (define out (open-output-bytes))
              (flatten
               (let loop ([cont cont])
                 (cond [(content-cons? cont)
@@ -453,7 +452,7 @@
     [(BOOLEAN)          (decode-boolean c der?)]
     [(INTEGER)          (base256->signed c)]
     [(BIT-STRING)       (decode-bit-string c der?)]
-    [(OCTET-STRING)     (gather)]
+    [(OCTET-STRING)     (bytes->immutable-bytes (gather))]
     [(NULL)             #f]
     [(OBJECT-IDENTIFIER)(decode-object-identifier c)]
     [(RELATIVE-OID)     (decode-relative-oid c)]
@@ -462,12 +461,10 @@
     [(PrintableString)  (decode-printable-string (gather))]
     ;; T61String
     [(IA5String)        (decode-ia5string (gather))]
-    ;; UTCTime
     [(VisibleString)    (decode-visible-string (gather))]
     [(UniversalString)  (decode-universal-string (gather))]
     [(BMPString)        (decode-bmp-string (gather))]
     [(UTF8String)       (decode-utf8-string (gather))]
-    ;; GeneralizedTime
     [else (error 'BER-decode-base "internal error: unexpected base type\n  type: ~s" base-type)]))
 
 ;; ----
@@ -500,7 +497,7 @@
                   #:more (format "\n unused bits: ~s" unused)))
     (bit-string (cond [out
                        (write-bytes part out 1 (bytes-length part))
-                       (get-output-bytes out)]
+                       (bytes->immutable-bytes (get-output-bytes out))]
                       [else (subbytes part 1 (bytes-length part))])
                 unused))
   (cond [(bytes? c) (final c #f)]
@@ -520,7 +517,7 @@
   (define s (bytes->string/latin-1 bs))
   (unless (ascii-string? s)
     (decode-bad 'IA5String bs))
-  s)
+  (string->immutable-string s))
 
 ;; decode-integer : Bytes -> Integer
 ;; Given encoded integer, returns raw integer
@@ -563,33 +560,33 @@
 (define (decode-numeric-string bs)
   (define s (bytes->string/latin-1 bs))
   (unless (asn1-numeric-string? s) (decode-bad 'NumericString bs))
-  s)
+  (string->immutable-string s))
 
 ;; decode-printable-string : Bytes -> Printable-String
 (define (decode-printable-string bs)
   (let ([s (bytes->string/latin-1 bs)])
     (unless (asn1-printable-string? s) (decode-bad 'PrintableString bs))
-    s))
+    (string->immutable-string s)))
 
 (define (decode-visible-string bs)
   (define s (bytes->string/latin-1 bs))
   (unless (asn1-visible-string? s) (decode-bad 'VisibleString bs))
-  s)
+  (string->immutable-string s))
 
 (define (decode-utf8-string b)
   (if (bytes-utf-8-length b #f)
-      (bytes->string/utf-8 b)
+      (string->immutable-string (bytes->string/utf-8 b))
       (decode-bad 'UTF8String b)))
 
 (define (decode-bmp-string b)
   (unless (even? (bytes-length b))
     (BER-error "encoded BMPString length not a multiple of 2"))
-  (decode-to-string 'BMPString b "UCS-2BE"))
+  (string->immutable-string (decode-to-string 'BMPString b "UCS-2BE")))
 
 (define (decode-universal-string b)
   (unless (zero? (remainder (bytes-length b) 4))
     (BER-error "encoded UniversalString length not a multiple of 4"))
-  (decode-to-string 'UniversalString b "UCS-4BE"))
+  (string->immutable-string (decode-to-string 'UniversalString b "UCS-4BE")))
 
 ;; decode-to-string : Symbol Bytes String -> String
 (define (decode-to-string what b benc)

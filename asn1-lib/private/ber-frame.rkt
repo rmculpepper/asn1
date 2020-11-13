@@ -322,7 +322,7 @@
                (b-pop-limit br))]
             [(and cons? (not len))
              (read-frames-until-nil)]
-            [else (b-read-bytes br len)]))
+            [else (bytes->immutable-bytes (b-read-bytes br len))]))
     (BER-frame tag content))
 
   ;; read-frames-until-limit : -> (Listof BER-Frame)
