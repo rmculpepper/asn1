@@ -4,7 +4,7 @@
                      racket/contract
                      asn1))
 
-@title{ASN.1}
+@title[#:version "1.2"]{ASN.1}
 @author[@author+email["Ryan Culpepper" "ryanc@racket-lang.org"]]
 
 @defmodule[asn1]
