@@ -86,6 +86,9 @@
          ANY*
 
          ;; private/base.rkt
+         (struct-out exn:fail:asn1)
+         (struct-out exn:fail:asn1:encoding)
+         (struct-out exn:fail:asn1:type)
          asn1-printable-string?
          ascii-string?
          (contract-out

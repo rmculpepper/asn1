@@ -142,5 +142,34 @@ frame.
 Write or read a BER TLV frame, respectively.
 }
 
+@section[#:tag "exn"]{ASN.1 Exceptions}
+
+@defstruct*[(exn:fail:asn1 exn:fail) ()]{
+
+Super struct type for exceptions related to ASN.1 encoding and decoding.
+
+@history[#:added "1.2"]
+}
+
+@defstruct*[(exn:fail:asn1:encoding exn:fail:asn1) ()]{
+
+Raised for errors in decoding, specifically when the encoded input violates the
+encoding rules (eg, BER or DER). Examples of BER violations include invalid
+frame structure, such as truncated input. Examples of DER violations include
+unsorted @tt{SET} elements and use of the indefinite length encoding.
+
+@history[#:added "1.2"]
+}
+
+@defstruct*[(exn:fail:asn1:type exn:fail:asn1) ()]{
+
+Raised for errors in either encoding or decoding involving a specific ASN.1
+type and either the input being decoded or the Racket value being encoded.
+Examples include missing required fields, unexpected fields in non-extensible
+@racket[SET] or @racket[SEQUENCE] types, unexpected @racket[CHOICE] variants,
+invalid characters in a @racket[IA5String], and so on.
+
+@history[#:added "1.2"]
+}
 
 @(close-eval the-eval)

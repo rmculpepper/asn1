@@ -348,7 +348,8 @@
 
 (define asn1-error-handler
   (make-binary-reader-error-handler
-   #:error (lambda (br who fmt . args) (apply error (or (asn1-who) who) fmt args))
+   #:error (lambda (br who fmt . args)
+             (apply BER-error "error reading BER frame structure;\n " fmt args))
    ;; Since the main client of the asn1 library is the crypto library, default
    ;; to not showing data in exns.
    #:show-data? (lambda (br who) #f)))

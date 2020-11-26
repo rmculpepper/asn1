@@ -30,16 +30,26 @@
       (proc)
       (with-continuation-mark asn1-who-key who (proc))))
 
-(define (asn1-error fmt . args) (apply error (asn1-who) fmt args))
+;; exn:fail:asn1 is used for errors discovered during decoding
+(struct exn:fail:asn1 exn:fail ())
+(struct exn:fail:asn1:encoding exn:fail:asn1 ())
+(struct exn:fail:asn1:type exn:fail:asn1 ())
+
+(define (raise-asn1 make-exn fmt . args)
+  (let/ec k (raise (make-exn (apply format fmt args) (continuation-marks k)))))
 
 (define (BER-error message [fmt ""] . args)
-  (error (asn1-who) "violation of the Basic Encoding Rules (BER);\n ~a~a"
-         message (apply format fmt args)))
+  (raise-asn1 exn:fail:asn1:encoding
+              "~a: violation of the Basic Encoding Rules (BER);\n ~a~a"
+              (asn1-who) message (apply format fmt args)))
 
 (define (DER-error message [fmt ""] . args)
-  (error (asn1-who) "violation of the Distinguished Encoding Rules (DER);\n ~a~a"
-         message (apply format fmt args)))
+  (raise-asn1 exn:fail:asn1:encoding
+              "~a: violation of the Distinguished Encoding Rules (DER);\n ~a~a"
+              (asn1-who) message (apply format fmt args)))
 
+(define (TYPE-error message [fmt ""] . args)
+  (raise-asn1 exn:fail:asn1:type "~a: ~a~a" (asn1-who) message (apply format fmt args)))
 
 ;; ============================================================
 ;; Tags

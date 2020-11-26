@@ -136,8 +136,8 @@
     (cond [(and option (equal? value default))
            #f]
           [(eq? value none)
-           (asn1-error "missing required field in ~s value\n  field: ~s\n  value: ~e"
-                       kind name h)]
+           (TYPE-error "missing required field in ~s value"
+                       "\n  field: ~s\n  value: ~e" kind name h)]
           [else (encode-frame type* value #f)]))
 
   (encode-frame type v #f))
@@ -197,7 +197,7 @@
 ;; Base type encoders
 
 (define (encode-bad type value [expected #f] #:msg [msg #f] #:more [more ""])
-  (asn1-error "bad value for type~a\n  type: ~e~a\n  value: ~e~a"
+  (TYPE-error "bad value for type" "~a\n  type: ~e~a\n  value: ~e~a"
               (if msg (format ";\n ~a" msg) "")
               type
               (if expected (format "\n  expected: ~.s" expected) "")
@@ -297,14 +297,14 @@
       (let loop ([type type] [check-tag? #t])
         (define (check-tag want-tag)
           (when (and check-tag? (not (equal? tag want-tag)))
-            (asn1-error "tag mismatch\n  expected: ~a\n  decoded: ~a"
+            (TYPE-error "tag mismatch" "\n  expected: ~a\n  decoded: ~a"
                         (display-tag want-tag) (display-tag tag))))
         (define (check-cons? base-type)
           (unless (base-type-cons-ok? base-type der? cons?)
-            (asn1-error "expected ~a encoding\n  type: ~e"
+            (TYPE-error "" "expected ~a encoding\n  type: ~e"
                         (if cons? "primitive" "constructed") type)))
         (define (check/need-cons?)
-          (unless cons? (asn1-error "expected constructed encoding\n  type: ~e" type)))
+          (unless cons? (TYPE-error "expected constructed encoding" "\n  type: ~e" type)))
         (match type
           [(asn1-type:any)
            (parse-any frame)]
@@ -330,8 +330,8 @@
               (list name (loop type* #f))]
              [_ (if ext
                     (list ext (parse-any frame))
-                    (BER-error "unknown variant for non-extensible CHOICE"
-                               "\n  tag: ~a\n  type: ~e" (display-tag tag) type))])]
+                    (TYPE-error "unknown variant for non-extensible CHOICE"
+                                "\n  tag: ~a\n  type: ~e" (display-tag tag) type))])]
           [(asn1-type:implicit-tag want-tag type*)
            (check-tag want-tag)
            (loop type* #f)]
@@ -340,8 +340,8 @@
            (parse-frames/one
             (content-frames cont) (mk-parse-frame type*)
             (lambda ()
-              (BER-error "expected single frame for explicitly tagged contents"
-                         "\n  type: ~e" type)))]
+              (TYPE-error "expected single frame for explicitly tagged contents"
+                          "\n  type: ~e" type)))]
           [(asn1-type:wrap type* _ post-decode)
            (if post-decode
                (post-decode (loop type* check-tag?))
@@ -371,8 +371,8 @@
             (match ct-option
               [(list 'optional) (values lframes h)]
               [(list 'default default) (values lframes (hash-set h ct-name default))]
-              [#f (BER-error "missing required field in encoded SEQUENCE"
-                             "\n  type: ~e\n  field: ~s" type ct-name)]))
+              [#f (TYPE-error "missing required field in encoded SEQUENCE"
+                              "\n  type: ~e\n  field: ~s" type ct-name)]))
           (match lframes
             ['() (try-skip)]
             [(cons frame frames)
@@ -390,7 +390,7 @@
                  ['() (hash-set h ext (reverse un))]
                  [(cons frame frames)
                   (loop frames (cons (parse-any frame) un))]))]
-            [else (BER-error "unknown field in non-extensible SEQUENCE" "\n  type: ~e" type)]))
+            [else (TYPE-error "unknown field in non-extensible SEQUENCE" "\n  type: ~e" type)]))
 
     ;; parse-set : Type Frames -> Hasheq[Symbol => Value]
     (define (parse-set type frames)
@@ -417,14 +417,14 @@
                     (define value (parse-any frame))
                     (loop frames h (frame-tag frame) (cons value un))]
                    [else
-                    (BER-error "unknown field in non-extensible SET" "\n type: ~e" type)])])))
+                    (TYPE-error "unknown field in non-extensible SET" "\n type: ~e" type)])])))
       (for/fold ([h h]) ([ct (in-list cts)] #:when (not (hash-has-key? h (component-name ct))))
         (match-define (component ct-name ct-type ct-option _ _) ct)
         (match ct-option
           [(list 'optional) h]
           [(list 'default default) (hash-set h ct-name default)]
-          [#f (BER-error "missing required field in SET"
-                         "\n  type: ~e\n  field: ~s" type ct-name)])))
+          [#f (TYPE-error "missing required field in SET"
+                          "\n  type: ~e\n  field: ~s" type ct-name)])))
 
     ;; check-explicit-default : Symbol MaybeOption Any Type -> Void or (error)
     (define (check-explicit-default ct-name ct-option value type)
@@ -432,8 +432,8 @@
         (match ct-option
           [(list 'default default)
            (when (equal? value default)
-             (DER-error "default field value encoded"
-                        "\n  type: ~e\n  field: ~s" type ct-name))]
+             (TYPE-error "default field value encoded (violates DER)"
+                         "\n  type: ~e\n  field: ~s" type ct-name))]
           [_ (void)])))
 
     ;; parse-base : BaseType Content -> Value
@@ -472,7 +472,7 @@
 ;; Base type decoders
 
 (define (decode-bad type encoded #:msg [msg #f] #:more [more #f])
-  (asn1-error "bad encoding for type~a\n  type: ~a~a~a"
+  (TYPE-error "bad encoding for type" "~a\n  type: ~a~a~a"
               (if msg (format ";\n ~a" msg) "")
               type
               (if encoded (format "\n  encoding: ~e" encoded) "")
