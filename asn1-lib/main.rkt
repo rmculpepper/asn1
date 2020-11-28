@@ -351,13 +351,14 @@
 (define (read-asn1 type [in (current-input-port)]
                    #:check-exhausted? [check-exhausted? #f]
                    #:rules [rules 'BER]
+                   #:limit [limit #f]
                    #:who [who 'read-asn1])
   (with-who who
     (lambda ()
       (define der? (eq? rules 'DER))
-      (define br (make-asn1-binary-reader in))
+      (define br (make-asn1-binary-reader in #:limit limit))
       (begin0 (decode-frame type (read-frame br der?) der?)
-        (when check-exhausted? (b-check-exhausted br who "ASN.1 value"))))))
+        (when check-exhausted? (b-check-exhausted br "ASN.1 value" #:who who))))))
 
 (define (write-asn1 type value [out (current-output-port)]
                     #:rules [rules 'BER] #:who [who 'write-asn1])
@@ -369,7 +370,9 @@
 (define (bytes->asn1 type b
                      #:rules [rules 'BER]
                      #:who [who 'bytes->asn1])
-  (read-asn1 type (open-input-bytes b) #:rules rules #:who who))
+  (read-asn1 type (open-input-bytes b) #:rules rules #:who who
+             #:check-exhausted? #t
+             #:limit (bytes-length b)))
 
 (define (asn1->bytes type v #:rules [rules 'BER] #:who [who 'asn1->bytes])
   (with-who who
