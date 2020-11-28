@@ -23,6 +23,8 @@
          (ENUMERATED/names named-values #:who who)]
         [(equal? t BIT-STRING)
          (BIT-STRING/names named-values #:who who)]
+        [(equal? t OBJECT-IDENTIFIER)
+         (OID/names named-values #:who who)]
         [else (error 'WRAP-NAMES "unsupported types\n  type: ~e" t)]))
 
 ;; NamedValues = (Listof (cons Symbol Any))
@@ -36,7 +38,17 @@
                    (cond [(symbol? v)
                           (cdr (or (assq v named-values) (error who "unknown name: ~e" v)))]
                          [(exact-nonnegative-integer? v) v]
-                         [else (encode-bad who v)]))
+                         [else (encode-bad who v '(or/c exact-nonnegative-integer? name-symbol?))]))
+        #:decode (lambda (v) (cond [(xassoc v named-values) => car] [else v]))))
+
+(define (OID/names named-values #:who [who 'OID/names])
+  (WRAP OBJECT-IDENTIFIER
+        #:encode (lambda (v)
+                   (cond [(symbol? v)
+                          (cdr (or (assq v named-values) (error who "unknown name: ~e" v)))]
+                         [(and (list? v) (pair? v) (andmap exact-nonnegative-integer? v)) v]
+                         [else (encode-bad who v '(or/c (listof exact-nonnegative-integer?)
+                                                        name-symbol?))]))
         #:decode (lambda (v) (cond [(xassoc v named-values) => car] [else v]))))
 
 (define (BIT-STRING/names named-bits #:who [who 'BIT-STRING/names])
@@ -49,7 +61,8 @@
                      (cond [(symbol? x)
                             (cdr (or (assq x named-bits) (error who "unknown name: ~e" x)))]
                            [(exact-nonnegative-integer? x) x]
-                           [else (encode-bad who v)]))
+                           [else (encode-bad who v '(listof (or/c exact-nonnegative-integer?
+                                                                  name-symbol?)))]))
                    (cond [(null? v) (bit-string #"" 0)]
                          [(list? v) ;; non-empty
                           (define bit-indexes (map get-bit-index v))
