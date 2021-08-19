@@ -1,0 +1,454 @@
+-- Source: Standards for Efficient Cryptography 1 (SEC 1):
+--   Elliptic Curve Cryptography (v2), Certicom Research
+-- http://www.secg.org/download/aid-780/sec1-v2.pdf
+
+SEC1-v1-9 {
+        iso(1) identified-organization(3) certicom(132) module(1) ver(2)
+}
+
+DEFINITIONS EXPLICIT TAGS ::= BEGIN
+
+--
+-- EXPORTS ALL;
+--
+
+FieldID { FIELD-ID:IOSet } ::= SEQUENCE { -- Finite field
+        fieldType FIELD-ID.&id({IOSet}),
+        parameters FIELD-ID.&Type({IOSet}{@fieldType})
+}
+
+FIELD-ID ::= TYPE-IDENTIFIER
+
+FieldTypes FIELD-ID ::= {
+        { Prime-p IDENTIFIED BY prime-field } |
+        { Characteristic-two IDENTIFIED BY characteristic-two-field }
+}
+
+prime-field OBJECT IDENTIFIER ::= { id-fieldType 1 }
+
+Prime-p ::= INTEGER -- Field of size p.
+
+id-fieldType OBJECT IDENTIFIER ::= { ansi-X9-62 fieldType(1)}
+
+ansi-X9-62 OBJECT IDENTIFIER ::= {
+        iso(1) member-body(2) us(840) 10045
+}
+
+characteristic-two-field OBJECT IDENTIFIER ::= { id-fieldType 2 }
+
+Characteristic-two ::= SEQUENCE {
+        m INTEGER, -- Field size 2m
+        basis CHARACTERISTIC-TWO.&id({BasisTypes}),
+        parameters CHARACTERISTIC-TWO.&Type({BasisTypes}{@basis})
+}
+
+CHARACTERISTIC-TWO ::= TYPE-IDENTIFIER
+
+BasisTypes CHARACTERISTIC-TWO ::= {
+        { NULL IDENTIFIED BY gnBasis } |
+        { Trinomial IDENTIFIED BY tpBasis } |
+        { Pentanomial IDENTIFIED BY ppBasis },
+        ...
+}
+
+gnBasis OBJECT IDENTIFIER ::= { id-characteristic-two-basis 1 }
+tpBasis OBJECT IDENTIFIER ::= { id-characteristic-two-basis 2 }
+ppBasis OBJECT IDENTIFIER ::= { id-characteristic-two-basis 3 }
+
+id-characteristic-two-basis OBJECT IDENTIFIER ::= {
+        characteristic-two-field basisType(3)
+}
+
+Trinomial ::= INTEGER
+
+Pentanomial ::= SEQUENCE {
+        k1 INTEGER, -- k1 > 0
+        k2 INTEGER, -- k2 > k1
+        k3 INTEGER -- k3 > k2
+}
+
+FieldElement ::= OCTET STRING
+
+ECDomainParameters{ECDOMAIN:IOSet} ::= CHOICE {
+        specified SpecifiedECDomain,
+        named ECDOMAIN.&id({IOSet}),
+        implicitCA NULL
+}
+
+SpecifiedECDomain ::= SEQUENCE {
+        version SpecifiedECDomainVersion(ecdpVer1 | ecdpVer2 | ecdpVer3, ...),
+        fieldID FieldID {{FieldTypes}},
+        curve Curve,
+        base ECPoint,
+        order INTEGER,
+        cofactor INTEGER OPTIONAL,
+        hash HashAlgorithm OPTIONAL,
+        ...
+}
+
+SpecifiedECDomainVersion ::= INTEGER {
+        ecdpVer1(1),
+        ecdpVer2(2),
+        ecdpVer3(3)
+}
+
+Curve ::= SEQUENCE {
+        a FieldElement,
+        b FieldElement,
+        seed BIT STRING OPTIONAL
+        -- Shall be present if used in SpecifiedECDomain
+        -- with version equal to ecdpVer2 or ecdpVer3
+}
+
+ECPoint ::= OCTET STRING
+
+ECDOMAIN ::= CLASS {
+        &id OBJECT IDENTIFIER UNIQUE
+}
+WITH SYNTAX { ID &id }
+
+SECGCurveNames ECDOMAIN::= {
+        ... -- named curves
+}
+
+HashAlgorithm ::= AlgorithmIdentifier {{ HashFunctions }}
+
+HashFunctions ALGORITHM ::= {
+        {OID sha-1 PARMS NULL } |
+        {OID id-sha224 PARMS NULL } |
+        {OID id-sha256 PARMS NULL } |
+        {OID id-sha384 PARMS NULL } |
+        {OID id-sha512 PARMS NULL } ,
+        ... -- Additional hash functions may be added in the future
+}
+
+sha-1 OBJECT IDENTIFIER ::= {iso(1) identified-organization(3)
+        oiw(14) secsig(3) algorithm(2) 2}
+id-sha OBJECT IDENTIFIER ::= { joint-iso-itu-t(2) country(16) us(840)
+        organization(1) gov(101) csor(3) nistalgorithm(4) hashalgs(2) }
+id-sha224 OBJECT IDENTIFIER ::= { id-sha 4 }
+id-sha256 OBJECT IDENTIFIER ::= { id-sha 1 }
+id-sha384 OBJECT IDENTIFIER ::= { id-sha 2 }
+id-sha512 OBJECT IDENTIFIER ::= { id-sha 3 }
+
+SubjectPublicKeyInfo ::= SEQUENCE {
+        algorithm AlgorithmIdentifier {{ECPKAlgorithms}} (WITH COMPONENTS
+                {algorithm, parameters}) ,
+        subjectPublicKey BIT STRING
+}
+
+AlgorithmIdentifier{ ALGORITHM:IOSet } ::= SEQUENCE {
+        algorithm ALGORITHM.&id({IOSet}),
+        parameters ALGORITHM.&Type({IOSet}{@algorithm}) OPTIONAL
+}
+
+ALGORITHM ::= CLASS {
+        &id OBJECT IDENTIFIER UNIQUE,
+        &Type OPTIONAL
+}
+WITH SYNTAX { OID &id [PARMS &Type] }
+
+ECPKAlgorithms ALGORITHM ::= {
+        ecPublicKeyType |
+        ecPublicKeyTypeRestricted |
+        ecPublicKeyTypeSupplemented |
+        {OID ecdh PARMS ECDomainParameters {{SECGCurveNames}}} |
+        {OID ecmqv PARMS ECDomainParameters {{SECGCurveNames}}},
+        ...
+}
+
+ecPublicKeyType ALGORITHM ::= {
+        OID id-ecPublicKey PARMS ECDomainParameters {{SECGCurveNames}}
+}
+
+id-ecPublicKey OBJECT IDENTIFIER ::= { id-publicKeyType 1 }
+id-publicKeyType OBJECT IDENTIFIER ::= { ansi-X9-62 keyType(2) }
+
+ecPublicKeyTypeRestricted ALGORITHM ::= {
+        OID id-ecPublicKeyTypeRestricted PARMS ECPKRestrictions
+}
+
+id-ecPublicKeyTypeRestricted OBJECT IDENTIFIER ::= {
+        id-publicKeyType restricted(2) }
+
+ECPKRestrictions ::= SEQUENCE {
+        ecDomain ECDomainParameters {{ SECGCurveNames }},
+        eccAlgorithms ECCAlgorithms
+}
+
+ECCAlgorithms ::= SEQUENCE OF ECCAlgorithm
+
+ECCAlgorithm ::= AlgorithmIdentifier {{ECCAlgorithmSet}}
+
+ecPublicKeyTypeSupplemented ALGORITHM ::= {
+        OID id-ecPublicKeyTypeSupplemented PARMS ECPKSupplements
+}
+
+secg-scheme OBJECT IDENTIFIER ::= { iso(1)
+        identified-organization(3) certicom(132) schemes(1) }
+id-ecPublicKeyTypeSupplemented OBJECT IDENTIFIER ::= {
+        secg-scheme supplementalPoints(0) }
+
+ECPKSupplements ::= SEQUENCE {
+        ecDomain ECDomainParameters {{ SECGCurveNames }},
+        eccAlgorithms ECCAlgorithms,
+        eccSupplements ECCSupplements
+}
+
+ECCSupplements ::= CHOICE {
+        namedMultiples [0] NamedMultiples,
+        specifiedMultiples [1] SpecifiedMultiples
+}
+
+NamedMultiples ::= SEQUENCE {
+        multiples OBJECT IDENTIFIER,
+        points SEQUENCE OF ECPoint
+}
+
+SpecifiedMultiples ::= SEQUENCE OF SEQUENCE {
+        multiple INTEGER,
+        point ECPoint 
+}
+
+ECPrivateKey ::= SEQUENCE {
+        version INTEGER { ecPrivkeyVer1(1) } (ecPrivkeyVer1),
+        privateKey OCTET STRING,
+        parameters [0] ECDomainParameters {{ SECGCurveNames }} OPTIONAL,
+        publicKey [1] BIT STRING OPTIONAL
+}
+
+ecdsa-with-SHA1 OBJECT IDENTIFIER ::= { id-ecSigType sha1(1)}
+ecdsa-with-Recommended OBJECT IDENTIFIER ::= { id-ecSigType recommended(2) }
+ecdsa-with-Specified OBJECT IDENTIFIER ::= { id-ecSigType specified(3)}
+ecdsa-with-Sha224 OBJECT IDENTIFIER ::= { id-ecSigType specified(3) 1 }
+ecdsa-with-Sha256 OBJECT IDENTIFIER ::= { id-ecSigType specified(3) 2 }
+ecdsa-with-Sha384 OBJECT IDENTIFIER ::= { id-ecSigType specified(3) 3 }
+ecdsa-with-Sha512 OBJECT IDENTIFIER ::= { id-ecSigType specified(3) 4 }
+id-ecSigType OBJECT IDENTIFIER ::= { ansi-X9-62 signatures(4) }
+
+ECDSAAlgorithmSet ALGORITHM ::= {
+        {OID ecdsa-with-SHA1 PARMS NULL} |
+        {OID ecdsa-with-Recommended PARMS NULL} |
+        {OID ecdsa-with-Specified PARMS HashAlgorithm } |
+        {OID ecdsa-with-Sha224 PARMS NULL} |
+        {OID ecdsa-with-Sha256 PARMS NULL} |
+        {OID ecdsa-with-Sha384 PARMS NULL} |
+        {OID ecdsa-with-Sha512 PARMS NULL} ,
+        ... -- More algorithms need to be added
+}
+
+ECCAlgorithmSet ALGORITHM ::= {
+        ECDSAAlgorithmSet |
+        ECDHAlgorithmSet |
+        ECMQVAlgorithmSet |
+        ECIESAlgorithmSet |
+        ECWKTAlgorithmSet ,
+        ...
+}
+
+ECDHAlgorithmSet ALGORITHM ::= {
+        {OID dhSinglePass-stdDH-sha1kdf PARMS NULL} |
+        {OID dhSinglePass-cofactorDH-sha1kdf PARMS NULL} |
+        {OID dhSinglePass-cofactorDH-recommendedKDF} |
+        {OID dhSinglePass-cofactorDH-specifiedKDF PARMS KeyDerivationFunction} |
+        {OID ecdh} |
+        {OID dhSinglePass-stdDH-sha256kdf-scheme} |
+        {OID dhSinglePass-stdDH-sha384kdf-scheme} |
+        {OID dhSinglePass-stdDH-sha224kdf-scheme} |
+        {OID dhSinglePass-stdDH-sha512kdf-scheme} |
+        {OID dhSinglePass-cofactorDH-sha256kdf-scheme} |
+        {OID dhSinglePass-cofactorDH-sha384kdf-scheme} |
+        {OID dhSinglePass-cofactorDH-sha224kdf-scheme} |
+        {OID dhSinglePass-cofactorDH-sha512kdf-scheme} ,
+        ... -- Future combinations may be added
+}
+
+ECMQVAlgorithmSet ALGORITHM ::= {
+        {OID mqvSinglePass-sha1kdf} |
+        {OID mqvSinglePass-recommendedKDF} |
+        {OID mqvSinglePass-specifiedKDF PARMS KeyDerivationFunction} |
+        {OID mqvFull-sha1kdf} |
+        {OID mqvFull-recommendedKDF} |
+        {OID mqvFull-specifiedKDF PARMS KeyDerivationFunction} |
+        {OID ecmqv} |
+        {OID mqvSinglePass-sha256kdf-scheme } |
+        {OID mqvSinglePass-sha384kdf-scheme } |
+        {OID mqvSinglePass-sha224kdf-scheme } |
+        {OID mqvSinglePass-sha512kdf-scheme } |
+        {OID mqvFull-sha256kdf-scheme } |
+        {OID mqvFull-sha384kdf-scheme } |
+        {OID mqvFull-sha224kdf-scheme } |
+        {OID mqvFull-sha512kdf-scheme } ,
+        ... -- Future combinations may be added
+}
+
+x9-63-scheme OBJECT IDENTIFIER ::= { iso(1) member-body(2)
+        us(840) ansi-x9-63(63) schemes(0) }
+
+dhSinglePass-stdDH-sha1kdf OBJECT IDENTIFIER ::= {x9-63-scheme 2}
+dhSinglePass-cofactorDH-sha1kdf OBJECT IDENTIFIER ::= {x9-63-scheme 3}
+mqvSinglePass-sha1kdf OBJECT IDENTIFIER ::= {x9-63-scheme 16}
+mqvFull-sha1kdf OBJECT IDENTIFIER ::= {x9-63-scheme 17}
+dhSinglePass-cofactorDH-recommendedKDF OBJECT IDENTIFIER ::= {secg-scheme 1}
+dhSinglePass-cofactorDH-specifiedKDF OBJECT IDENTIFIER ::= {secg-scheme 2}
+ecdh OBJECT IDENTIFIER ::= {secg-scheme 12}
+dhSinglePass-stdDH-sha256kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 11 1}
+dhSinglePass-stdDH-sha384kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 11 2}
+dhSinglePass-stdDH-sha224kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 11 0}
+dhSinglePass-stdDH-sha512kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 11 3}
+dhSinglePass-cofactorDH-sha256kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 14 1}
+dhSinglePass-cofactorDH-sha384kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 14 2}
+dhSinglePass-cofactorDH-sha224kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 14 0}
+dhSinglePass-cofactorDH-sha512kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 14 3}
+mqvSinglePass-recommendedKDF OBJECT IDENTIFIER ::= {secg-scheme 3}
+mqvSinglePass-specifiedKDF OBJECT IDENTIFIER ::= {secg-scheme 4}
+mqvFull-recommendedKDF OBJECT IDENTIFIER ::= {secg-scheme 5}
+mqvFull-specifiedKDF OBJECT IDENTIFIER ::= {secg-scheme 6}
+ecmqv OBJECT IDENTIFIER ::= {secg-scheme 13}
+mqvSinglePass-sha256kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 15 1}
+mqvSinglePass-sha384kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 15 2}
+mqvSinglePass-sha224kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 15 0}
+mqvSinglePass-sha512kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 15 3}
+mqvFull-sha256kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 16 1}
+mqvFull-sha384kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 16 2}
+mqvFull-sha224kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 16 0}
+mqvFull-sha512kdf-scheme OBJECT IDENTIFIER ::= {secg-scheme 16 3}
+
+KeyDerivationFunction ::= AlgorithmIdentifier {{KDFSet}}
+
+KDFSet ALGORITHM ::= {
+        {OID x9-63-kdf PARMS HashAlgorithm } |
+        {OID nist-concatenation-kdf PARMS HashAlgorithm } |
+        {OID tls-kdf PARMS HashAlgorithm } |
+        {OID ikev2-kdf PARMS HashAlgorithm } ,
+        ... -- Future combinations may be added
+}
+
+x9-63-kdf OBJECT IDENTIFIER ::= {secg-scheme 17 0}
+nist-concatenation-kdf OBJECT IDENTIFIER ::= {secg-scheme 17 1}
+tls-kdf OBJECT IDENTIFIER ::= {secg-scheme 17 2}
+ikev2-kdf OBJECT IDENTIFIER ::= {secg-scheme 17 3}
+
+ECIESAlgorithmSet ALGORITHM ::= {
+        {OID ecies-recommendedParameters} |
+        {OID ecies-specifiedParameters PARMS ECIESParameters} ,
+        ... -- Future combinations may be added
+}
+
+ecies-recommendedParameters OBJECT IDENTIFIER ::= {secg-scheme 7}
+ecies-specifiedParameters OBJECT IDENTIFIER ::= {secg-scheme 8}
+
+ECIESParameters ::= SEQUENCE {
+        kdf [0] KeyDerivationFunction OPTIONAL,
+        sym [1] SymmetricEncryption OPTIONAL,
+        mac [2] MessageAuthenticationCode OPTIONAL
+}
+
+SymmetricEncryption ::= AlgorithmIdentifier {{SYMENCSet}}
+MessageAuthenticationCode ::= AlgorithmIdentifier {{MACSet}}
+
+SYMENCSet ALGORITHM ::= {
+        { OID xor-in-ecies } |
+        { OID tdes-cbc-in-ecies } |
+        { OID aes128-cbc-in-ecies } |
+        { OID aes192-cbc-in-ecies } |
+        { OID aes256-cbc-in-ecies } |
+        { OID aes128-ctr-in-ecies } |
+        { OID aes192-ctr-in-ecies } |
+        { OID aes256-ctr-in-ecies } ,
+        ... -- Future combinations may be added
+}
+
+MACSet ALGORITHM ::= {
+        { OID hmac-full-ecies PARMS HashAlgorithm} |
+        { OID hmac-half-ecies PARMS HashAlgorithm} |
+        { OID cmac-aes128-ecies } |
+        { OID cmac-aes192-ecies } |
+        { OID cmac-aes256-ecies } ,
+        ... -- Future combinations may be added
+}
+
+xor-in-ecies OBJECT IDENTIFIER ::= {secg-scheme 18 }
+tdes-cbc-in-ecies OBJECT IDENTIFIER ::= {secg-scheme 19 }
+aes128-cbc-in-ecies OBJECT IDENTIFIER ::= {secg-scheme 20 0 }
+aes192-cbc-in-ecies OBJECT IDENTIFIER ::= {secg-scheme 20 1 }
+aes256-cbc-in-ecies OBJECT IDENTIFIER ::= {secg-scheme 20 2 }
+aes128-ctr-in-ecies OBJECT IDENTIFIER ::= {secg-scheme 21 0 }
+aes192-ctr-in-ecies OBJECT IDENTIFIER ::= {secg-scheme 21 1 }
+aes256-ctr-in-ecies OBJECT IDENTIFIER ::= {secg-scheme 21 2 }
+hmac-full-ecies OBJECT IDENTIFIER ::= {secg-scheme 22 }
+hmac-half-ecies OBJECT IDENTIFIER ::= {secg-scheme 23 }
+cmac-aes128-ecies OBJECT IDENTIFIER ::= {secg-scheme 24 0 }
+cmac-aes192-ecies OBJECT IDENTIFIER ::= {secg-scheme 24 1 }
+cmac-aes256-ecies OBJECT IDENTIFIER ::= {secg-scheme 24 2 }
+
+ECWKTAlgorithmSet ALGORITHM ::= {
+        {OID ecwkt-recommendedParameters} |
+        {OID ecwkt-specifiedParameters PARMS ECWKTParameters} ,
+        ...
+        -- Future combinations may be added
+}
+
+ecwkt-recommendedParameters OBJECT IDENTIFIER ::= {secg-scheme 9}
+ecwkt-specifiedParameters OBJECT IDENTIFIER ::= {secg-scheme 10}
+
+ECWKTParameters ::= SEQUENCE {
+        kdf [0] KeyDerivationFunction OPTIONAL,
+        wrap [1] KeyWrapFunction OPTIONAL
+}
+
+KeyWrapFunction ::= AlgorithmIdentifier {{KeyWrapSet}}
+
+KeyWrapSet ALGORITHM ::= {
+        { OID aes128-key-wrap } |
+        { OID aes192-key-wrap } |
+        { OID aes256-key-wrap } ,
+        ... -- Future combinations may be added
+}
+
+aes128-key-wrap OBJECT IDENTIFIER ::= {secg-scheme 25 0 }
+aes192-key-wrap OBJECT IDENTIFIER ::= {secg-scheme 25 1 }
+aes256-key-wrap OBJECT IDENTIFIER ::= {secg-scheme 25 2 }
+
+ECDSA-Signature ::= CHOICE {
+        two-ints-plus ECDSA-Sig-Value,
+        point-int [0] ECDSA-Full-R,
+        ... -- Future representations may be added
+}
+
+ECDSA-Sig-Value ::= SEQUENCE {
+        r INTEGER,
+        s INTEGER,
+        a INTEGER OPTIONAL,
+        y CHOICE { b BOOLEAN, f FieldElement } OPTIONAL
+}
+
+ECDSA-Full-R ::= SEQUENCE {
+        r ECPoint,
+        s INTEGER
+}
+
+ECIES-Ciphertext-Value ::= SEQUENCE {
+        ephemeralPublicKey ECPoint,
+        symmetricCiphertext OCTET STRING,
+        macTag OCTET STRING
+}
+
+ASN1SharedInfo ::= SEQUENCE {
+        keyInfo AlgorithmIdentifier,
+        entityUInfo [0] OCTET STRING OPTIONAL,
+        entityVInfo [1] OCTET STRING OPTIONAL,
+        suppPubInfo [2] OCTET STRING OPTIONAL,
+        suppPrivInfo [3] OCTET STRING OPTIONAL
+}
+
+SEC1-PDU ::= CHOICE {
+        privateKey [0] ECPrivateKey,
+        spki [1] SubjectPublicKeyInfo,
+        ecdsa [2] ECDSA-Signature,
+        ecies [3] ECIES-Ciphertext-Value,
+        sharedinfo [4] ASN1SharedInfo,
+        ...
+}
+
+END
