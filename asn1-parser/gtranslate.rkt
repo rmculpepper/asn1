@@ -22,7 +22,7 @@
     [(mod:defn (mod:id id _) tagmode extmode exports imports assignments)
      (define defs (unbegin (decl-of-assignments assignments)))
      `(module ,id racket/base
-        (require asn1 asn1/string-stub)
+        (require asn1 asn1/util/names)
         (provide (all-defined-out))
         ,@(map decl-of-import imports)
         ,@(cond [(split-definitions?)
@@ -32,7 +32,8 @@
                  `[,(unquoted-printing-string ";; Value, etc definitions")
                    ,@(mark-duplicates vdefs)
                    ,(unquoted-printing-string ";; Type definitions")
-                   ,@tdefs]]
+                   ,@tdefs
+                   ,@(if (null? tdefs) (list (unquoted-printing-string "")) null)]]
                 [else (mark-duplicates defs)]))]))
 
 (define (decl-of-import imp)

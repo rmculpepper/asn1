@@ -187,16 +187,32 @@
     [(list v) v]
     [vs* (fail kind t (ambiguous vs*))]))
 
+(define (tc-argument ast)
+  (case (ast-kind* ast)
+    [(value) ((tc-value #f) ast)]
+    [(type) (tc-type ast)]
+    [(value-set) (tc-value-set #f ast)]
+    [(class) ((tc-object #f) ast)]
+    [(object-set) ((tc-object-set #f) ast)]
+    [else
+     (match ast
+       [(x-set:defn name) name] ;; FIXME: hack around bad parse?
+       [_
+        #;(eprintf "tc-argument: unknown kind: ~e\n" ast)
+        ast])]))
+
 (define (tc-type t)
   (match t
     [(? (ref-of-kinds? '(type)) ref) ref]
     [(ambiguous vs) (disambiguate 'type (lambda (_) tc-type) #f t)]
     [(expr:apply fun args)
-     ;; FIXME
-     (tc-type fun)]
+     (let ([fun (tc-type fun)])
+       ;; FIXME: use fun type information
+       (expr:apply fun (map tc-argument args)))]
     [(expr:fun params body)
-     (parameterize ((env (env-add-params (env) params)))
-       (tc-type body))]
+     (expr:fun params
+               (parameterize ((env (env-add-params (env) params)))
+                 (tc-type body)))]
     [(type:integer nvs)
      (begin0 t
        (for ([nv (in-list nvs)])
@@ -210,8 +226,9 @@
     [(? (ref-of-kinds? '(value))) v]
     [(ambiguous vs) (disambiguate 'value tc-value t v)]
     [(expr:fun params body)
-     (parameterize ((env (env-add-params (env) params)))
-       ((tc-value t) body))]
+     (expr:fun params
+               (parameterize ((env (env-add-params (env) params)))
+                 ((tc-value t) body)))]
     [(? value:oid/reloid?)
      (match (get-vtype)
        [(or (type 'OBJECT-IDENTIFIER) (type 'RELATIVE-OID)) v]
