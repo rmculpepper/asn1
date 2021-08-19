@@ -2,7 +2,7 @@
 (require racket/match
          racket/list
          racket/pretty
-         "ast2.rkt"
+         "ast.rkt"
          "tree-util.rkt")
 (provide (all-defined-out))
 
@@ -556,7 +556,7 @@
 
 (module+ main
   (require racket/cmdline
-           "ggramar2.rkt")
+           "grammar.rkt")
 
   (define (print-env-delta env old-env)
     (define env-delta

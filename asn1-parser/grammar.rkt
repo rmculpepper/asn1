@@ -3,9 +3,9 @@
          racket/list
          grrparse
          "tree-util.rkt"
-         "gparser-util.rkt"
-         "glexer.rkt"
-         "ast2.rkt")
+         "parser-util.rkt"
+         "lexer.rkt"
+         "ast.rkt")
 (provide (all-defined-out))
 
 (define-nt-definers define-nt define-asn1-grammar)

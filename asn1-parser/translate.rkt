@@ -1,7 +1,7 @@
 #lang racket/base
 (require racket/match
          racket/list
-         "ast2.rkt"
+         "ast.rkt"
          "tree-util.rkt")
 
 ;; Other ideas
@@ -374,7 +374,7 @@
 (module+ main
   (require racket/cmdline
            racket/pretty
-           "ggramar2.rkt"
+           "grammar.rkt"
            "typecheck.rkt")
 
   (define (pretty-print-code code)
