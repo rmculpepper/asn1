@@ -29,8 +29,8 @@
 (define (asn1-utc-time->seconds t
                                 #:who [who 'asn1-utc-time->seconds])
   (match (regexp-match UTCTime-rx t)
-    [(list _ YY (regexp XXYY-rx (list _ MM DD)) hh mm ss ff offset)
-     (to-seconds who #f YY MM DD hh mm ss ff offset)]
+    [(list _ YY (regexp XXYY-rx (list _ MM DD)) hh mm ss offset)
+     (to-seconds who #f YY MM DD hh mm ss #f offset)]
     [#f (error who "invalid UTCTime\n  string: ~e" t)]))
 
 ;; asn1-generalized-time->seconds : String -> Real

@@ -460,15 +460,14 @@ Returns @racket[#t] if @racket[v] is a string representing a valid
 @racket[UTCTime], respectively; otherwise, returns @racket[#f].
 
 @verbatim|{
-<UTCTime> = YYMMDDhh[mm[ss[<sep>f[f[f[f]]]]]]<offset>
+<UTCTime> = YYMMDDhh[mm[ss]]<offset>
 <sep>     = "." | ","
 <offset>  = "Z" | "+"hhmm | "-"hhmm
 }|
 
 @examples[#:eval the-eval
 (asn1-utc-time? "851106210627Z")
-(asn1-utc-time? "851106210627.3Z")
-(asn1-utc-time? "851106210627.3-0500")
+(asn1-utc-time? "851106210627-0500")
 ]
 
 @history[#:added "1.2"]}

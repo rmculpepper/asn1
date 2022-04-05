@@ -260,35 +260,43 @@
                         (cond [(regexp-match? UTCTime-rx s) s]
                               [else (decode-bad 'UTCTime s)])))))
 
+(module rx racket/base
+  (require racket/string)
+  (provide (all-defined-out))
+  (define (rx . parts) (format "(?:~a)" (apply string-append parts)))
+  (define (rx-select . parts) (format "(~a)" (apply string-append parts)))
+  (define (rx? . parts) (format "(?:~a)?" (apply string-append parts)))
+  (define (rx-or . alts) (rx (string-join (map rx alts) "|"))))
+(require (submod "." rx))
+
 ;; GeneralizedTime = YYYYMMDDhh[mm[ss[<sep>f[f[f[f]]]]]]<offset>
 ;; offset = ε | Z | +hhmm | -hhmm
 (define MMDD-rx
-  (string-append
-   "("
-   "(?:01|03|05|07|08|10|12)(?:0[1-9]|[12][0-9]|3[0-1])" "|"
-   "(?:04|06|09|11)(?:0[1-9]|[12][0-9]|30)" "|"
-   "02(?:0[1-9]|[12][0-9])"
-   ")"))
+  (rx-select
+   (rx-or (rx (rx "01|03|05|07|08|10|12") (rx "0[1-9]|[12][0-9]|3[0-1]"))
+          (rx (rx "04|06|09|11") (rx "0[1-9]|[12][0-9]|30"))
+          (rx (rx "02") (rx "0[1-9]|[12][0-9]")))))
 
-(define hhmmssf-rx
-  (string-append
-   "([01][0-9]|2[0-3])" ;; hh
-   "(?:"
-   "([0-5][0-9])?" ;; mm
-   "(?:"
-   "([0-5][0-9]|60)?" ;; ss -- allow leap second
-   "(?:[.,]([0-9]+))?"  ;; .f+
-   ")?)"))
+(define hhmmssf-rx  ;; allow fractional seconds
+  (rx (rx-select "[01][0-9]|2[0-3]") ;; hh
+      (rx? (rx-select "[0-5][0-9]") ;; mm
+           (rx? (rx-select "[0-5][0-9]|60") ;; ss -- allow leap second
+                (rx? "[.,]" (rx-select "[0-9]+"))))))
+
+(define hhmmss-rx  ;; fractional seconds
+  (rx (rx-select "[01][0-9]|2[0-3]") ;; hh
+      (rx? (rx-select "[0-5][0-9]") ;; mm
+           (rx? (rx-select "[0-5][0-9]|60"))))) ;; ss -- allow leap second
 
 (define offset-rx
-  "(Z|[+-](?:[01][0-9]|2[0-3])(?:[0-5][0-9])?)")
+  (rx-or "Z" (rx "[-+]" (rx-select (rx "[01][0-9]|2[0-3]") (rx? "[0-5][0-9]")))))
 
 (define GeneralizedTime-rx
-  (pregexp (string-append "^([0-9]{4})" MMDD-rx hhmmssf-rx offset-rx "?$")))
+  (pregexp (string-append "^([0-9]{4})" MMDD-rx hhmmssf-rx (rx? offset-rx) "$")))
 
-;; UTCTime = like GeneralizedTime, but 2 chars for YY, offset required
+;; UTCTime = like GeneralizedTime, but 2 chars for YY, no frac, offset required
 (define UTCTime-rx
-  (pregexp (string-append "^([0-9]{2})" MMDD-rx hhmmssf-rx offset-rx "$")))
+  (pregexp (string-append "^([0-9]{2})" MMDD-rx hhmmss-rx offset-rx "$")))
 
 (module+ private-util-time
   (provide GeneralizedTime-rx
