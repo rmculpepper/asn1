@@ -247,6 +247,13 @@
 (define (asn1-visible-string? s)
   (and (string? s) (regexp-match? #rx"^[\x20-\x7E]*$" s)))
 
+(define (asn1-oid? v)
+  (and (list? v)
+       (andmap exact-nonnegative-integer? v)
+       (>= (length v) 2)
+       (<= 0 (car v) 2)
+       (<= 0 (cadr v) 39)))
+
 ;; ----------------------------------------
 ;; INTEGER:
 ;; base-256, two's-complement (!!), most significant octet first

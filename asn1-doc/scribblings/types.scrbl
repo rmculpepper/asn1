@@ -69,7 +69,8 @@ Type of references to ``objects'' in a hierarchical
 registry. Represented by Racket @racket[(listof
 exact-nonnegative-integer?)] of length at least 2, where the first
 integer is between 0 and 2 (inclusive) and the second is between 0 and
-39 (inclusive). There is no upper bound on subsequent integers.
+39 (inclusive). There is no upper bound on subsequent integers. See
+@racket[asn1-oid?].
 
 @examples[
 (define rsadsi '(1 2 840 113549))
@@ -400,24 +401,90 @@ pkcs-1
 
 Returns @racket[#t] if @racket[v] is a string containing only the
 characters allowed by @racket[PrintableString], @racket[#f] otherwise.
+
+Corresponds to @racket[#rx"^[-a-zA-Z0-9 '()+,./:=?]*$"].
 }
+
+@defproc[(asn1-numeric-string? [v any/c]) boolean?]{
+
+Returns @racket[#t] if @racket[v] is a string containing only the
+characters allowed by @racket[NumericString], @racket[#f] otherwise.
+
+Corresponds to @racket[#rx"^[ 0-9]*$"].
+
+@history[#:added "1.3"]}
+
+@defproc[(asn1-visible-string? [v any/c]) boolean?]{
+
+Returns @racket[#t] if @racket[v] is a string containing only the
+characters allowed by @racket[VisibleString], @racket[#f] otherwise.
+
+Corresponds to @racket[#rx"^[\x20-\x7E]*$"], or equivalently
+@racketvalfont{#rx"^[\x20-\x7E]*$"}.
+
+@history[#:added "1.3"]}
 
 @defproc[(ascii-string? [v any/c]) boolean?]{
 
 Returns @racket[#t] if @racket[v] is a string containing only the
 characters allowed by @racket[IA5String] (that is, characters 0
 through 127), @racket[#f] otherwise.
+
+Corresponds to @racket[#px"^[[:ascii:]]*$"].
 }
 
-@deftogether[[
-@defproc[(asn1-generalized-time? [v any/c]) boolean?]
-@defproc[(asn1-utc-time? [v any/c]) boolean?]
-]]{
+@defproc[(asn1-generalized-time? [v any/c]) boolean?]{
 
 Returns @racket[#t] if @racket[v] is a string representing a valid
-GeneralizedTime or UTCTime, respectively; otherwise, returns @racket[#f].
+@racket[GeneralizedTime]; otherwise, returns @racket[#f].
 
-@history[#:added "1.2"]
-}
+@verbatim|{
+<GeneralizedTime> = YYYYMMDDhh[mm[ss[<sep>f[f[f[f]]]]]][<offset>]
+<sep>             = "." | ","
+<offset>          = "Z" | "+"hhmm | "-"hhmm
+}|
+
+@examples[#:eval the-eval
+(asn1-generalized-time? "1985110621")
+(asn1-generalized-time? "19851106210627Z")
+(asn1-generalized-time? "19851106210627.3")
+(asn1-generalized-time? "19851106210627.3Z")
+(asn1-generalized-time? "19851106210627.3-0500")
+]
+
+@history[#:added "1.2"]}
+
+@defproc[(asn1-utc-time? [v any/c]) boolean?]{
+
+Returns @racket[#t] if @racket[v] is a string representing a valid
+@racket[UTCTime], respectively; otherwise, returns @racket[#f].
+
+@verbatim|{
+<UTCTime> = YYMMDDhh[mm[ss[<sep>f[f[f[f]]]]]]<offset>
+<sep>     = "." | ","
+<offset>  = "Z" | "+"hhmm | "-"hhmm
+}|
+
+@examples[#:eval the-eval
+(asn1-utc-time? "851106210627Z")
+(asn1-utc-time? "851106210627.3Z")
+(asn1-utc-time? "851106210627.3-0500")
+]
+
+@history[#:added "1.2"]}
+
+@defproc[(asn1-oid? [v any/c]) boolean?]{
+
+Returns @racket[#t] if @racket[v] is a value representing an
+@racket[OBJECT-IDENTIFIER]: a list of nonnegative exact integers with
+at least two elements, with the first between @racket[0] and
+@racket[2] (inclusive) and the second between @racket[0] and
+@racket[39] (inclusive).
+
+@examples[#:eval the-eval
+(asn1-oid? '(1 2 840 113549 1 1))
+]
+
+@history[#:added "1.3"]}
 
 @(close-eval the-eval)

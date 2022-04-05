@@ -90,6 +90,10 @@
          (struct-out exn:fail:asn1:encoding)
          (struct-out exn:fail:asn1:type)
          asn1-printable-string?
+         asn1-numeric-string?
+         asn1-visible-string?
+         asn1-oid?
+
          ascii-string?
          (contract-out
           [struct bit-string ([bytes bytes?] [unused (integer-in 0 7)])]))
