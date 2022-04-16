@@ -1,5 +1,5 @@
-# asn1 - An ASN.1 for Racket
+# asn1 - An ASN.1 Library for Racket
 
 ## Documentation
 
-Read the documentation online here: http://rmculpepper.github.io/asn1/
+Read the documentation online here: https://docs.racket-lang.org/asn1/
