@@ -1,3 +1,6 @@
+;; Copyright 2014-2017 Ryan Culpepper
+;; SPDX-License-Identifier: Apache-2.0
+
 #lang racket/base
 (require binaryio/integer)
 (provide (all-defined-out))

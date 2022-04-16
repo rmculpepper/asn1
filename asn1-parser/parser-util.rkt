@@ -1,3 +1,6 @@
+;; Copyright 2020-2021 Ryan Culpepper
+;; SPDX-License-Identifier: Apache-2.0
+
 #lang racket/base
 (require (for-syntax racket/base racket/syntax syntax/parse racket/promise
                      racket/match racket/dict syntax/id-table racket/list)

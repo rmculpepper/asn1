@@ -1,3 +1,6 @@
+;; Copyright 2014-2018 Ryan Culpepper
+;; SPDX-License-Identifier: Apache-2.0
+
 #lang info
 
 ;; ========================================
@@ -7,6 +10,7 @@
 (define collection "asn1")
 (define deps '("base" "rackunit-lib" "asn1-lib"))
 (define pkg-authors '(ryanc))
+(define license 'Apache-2.0)
 
 ;; ========================================
 ;; collect info

@@ -20,17 +20,9 @@ Distinguished Encoding Rules (BER and DER).
 
 @centered{@url{https://github.com/rmculpepper/asn1}}
 
-@bold{Copying} This program is free software: you can redistribute
-it and/or modify it under the terms of the
-@hyperlink["http://www.gnu.org/licenses/lgpl.html"]{GNU Lesser General
-Public License} as published by the Free Software Foundation, either
-version 3 of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-General Public License and GNU Lesser General Public License for more
-details.
+@bold{Copying} Licensed under the
+@hyperlink["http://www.apache.org/licenses/LICENSE-2.0"]{Apache
+License, Version 2.0}.
 
 @include-section["intro.scrbl"]
 @include-section["types.scrbl"]
