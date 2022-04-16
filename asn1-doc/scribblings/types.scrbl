@@ -5,7 +5,7 @@
           (for-label racket/base
                      racket/contract
                      racket/match
-                     asn1))
+                     asn1 asn1/ber))
 
 @(define the-eval (make-base-eval))
 @(the-eval '(require asn1))
@@ -356,6 +356,14 @@ the encoding represents.
 Like @racket[ANY], but additionally recognizes and translates standard
 universal tags.
 
+@interaction[#:eval the-eval
+(bytes->asn1 ANY*
+  (asn1->bytes (SEQUENCE-OF INTEGER) '(1 2 3 -1000)))
+(bytes->asn1 ANY*
+  (asn1->bytes (SEQUENCE [a IA5String] [b INTEGER])
+               (hasheq 'a "Jean" 'b 24601)))
+]
+
 @history[#:added "1.1"]}
 
 
@@ -363,10 +371,10 @@ universal tags.
 
 @defstruct*[bit-string ([bytes bytes?] [unused (integer-in 0 7)])]{
 
-Represents a bit string. The first bit in the bit string is the high
-bit of the first octet of @racket[_bytes]. The lowest @racket[_unused]
-bits of the last octet of @racket[_bytes] are not considered part of
-the bit string; they should be set to 0.
+Represents a bit string. The first bit in the bit string is the most
+significant bit of the first octet of @racket[_bytes]. The lowest
+@racket[_unused] bits of the last octet of @racket[_bytes] are not
+considered part of the bit string; they should be set to 0.
 }
 
 @defform[(OID oid-component ...)
